@@ -1,0 +1,6 @@
+{
+  "name": "ClassLine",
+  "description": "A shared, real-time home and school ledger connecting parents and teachers for notes, fees, events, and reading logs.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
