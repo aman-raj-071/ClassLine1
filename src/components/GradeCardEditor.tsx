@@ -317,7 +317,10 @@ export const GradeCardEditor: React.FC<GradeCardEditorProps> = ({
     } catch (error) {
       const narrative = generateCgpaTeacherNarrative(formCard.pupilName, formCard.cgpa, formCard.resultStatus);
       setFormCard((previous) => ({ ...previous, teacherGeneralRemarks: narrative }));
-      showToast(`${error instanceof Error ? error.message : 'AI service is unavailable'}. A CGPA-based narrative was generated locally.`, 'info');
+      const message = error instanceof TypeError
+        ? 'The local AI service is not running. Restart ClassLine with “npm run dev”.'
+        : error instanceof Error ? error.message : 'AI service is unavailable';
+      showToast(`${message} A CGPA-based narrative was generated locally.`, 'info');
     } finally { setIsGeneratingNarrative(false); }
   };
 

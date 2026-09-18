@@ -13,7 +13,7 @@ import {
   CorsHttpMethod,
 } from 'aws-cdk-lib/aws-apigatewayv2';
 import { HttpLambdaIntegration } from 'aws-cdk-lib/aws-apigatewayv2-integrations';
-import { Stack } from 'aws-cdk-lib';
+import { Stack, aws_iam } from 'aws-cdk-lib';
 
 /**
  * ClassLine Backend Definition (Amplify Gen 2)
@@ -69,6 +69,14 @@ classLineTable.addGlobalSecondaryIndex({
 // 2. Permissions: Grant Lambda full read/write access to ClassLineTable
 const lambdaFunction = backend.apiFunction.resources.lambda;
 classLineTable.grantReadWriteData(lambdaFunction);
+
+// The Lambda receives only model-invocation permission. It does not receive
+// AWS credentials in browser code, and cannot create or manage Bedrock models.
+lambdaFunction.addToRolePolicy(new aws_iam.PolicyStatement({
+  effect: aws_iam.Effect.ALLOW,
+  actions: ['bedrock:InvokeModel'],
+  resources: ['arn:aws:bedrock:*::foundation-model/amazon.nova-lite-v1:0'],
+}));
 
 // Grant permissions to the VerifyAuthChallenge trigger to query GSI2
 const verifyAuthLambda = backend.auth.resources.userPool;

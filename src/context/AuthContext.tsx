@@ -46,6 +46,7 @@ interface AuthContextType {
   markNotificationsRead: (role: UserRole) => void;
   payFee: (entryId: string, paymentReference?: string) => void;
   sendTeacherNote: (entryId: string, noteText: string) => void;
+  replyToParentMessage: (entryId: string, messageId: string, messageText: string) => void;
   logReadingNight: (childId: string) => void;
   signOffItem: (id: string, notes?: string) => void;
   signOffAllItems: () => void;
@@ -420,19 +421,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (!noteText.trim()) return;
     const now = new Date();
     const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    setTimelineEntries((prev) =>
-      prev.map((e) =>
-        e.id === entryId
-          ? {
-              ...e,
-              replyText: noteText,
-              replyTime: timeStr,
-            }
-          : e
-      )
-    );
+    const message = { id: `parent-message-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, text: noteText.trim(), sentAt: timeStr };
+    setTimelineEntries((prev) => prev.map((entry) => entry.id === entryId ? { ...entry, parentMessages: [...(entry.parentMessages || []), message] } : entry));
     notify('teacher', 'New parent message', `${currentUser?.name || 'A parent'} sent a note: “${noteText.trim()}”`);
     showToast('Quiet note delivered directly to teacher.', 'success');
+  };
+
+  const replyToParentMessage = (entryId: string, messageId: string, messageText: string) => {
+    if (!messageText.trim()) return;
+    const entry = timelineEntries.find((item) => item.id === entryId);
+    const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    setTimelineEntries((previous) => previous.map((item) => item.id === entryId ? { ...item, parentMessages: (item.parentMessages || []).map((message) => message.id === messageId ? { ...message, teacherReplyText: messageText.trim(), teacherReplyTime: timeStr } : message) } : item));
+    notify('parent', 'New teacher reply', `${currentUser?.name || 'Class teacher'} replied regarding ${entry?.title || 'your message'}.`);
+    showToast('Reply sent to the parent dashboard.', 'success');
   };
 
   const logReadingNight = (childId: string) => {
@@ -680,6 +681,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         markNotificationsRead,
         payFee,
         sendTeacherNote,
+        replyToParentMessage,
         logReadingNight,
         signOffItem,
         signOffAllItems,

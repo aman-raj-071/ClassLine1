@@ -30,6 +30,8 @@ import {
   ChevronUp,
   GraduationCap,
   UserPlus,
+  MessageSquare,
+  Sparkles,
 } from 'lucide-react';
 import { GradeCardEditor } from './GradeCardEditor';
 import { ParentAccountManager } from './ParentAccountManager';
@@ -38,6 +40,7 @@ import { createDefaultGradeCardForPupil } from '../utils/gradeCalculations';
 import { ClassSchedulePanel } from './ClassSchedulePanel';
 import { TeacherAccountManager } from './TeacherAccountManager';
 import { SchoolDirectory } from './SchoolDirectory';
+import { TeacherAiAssistant } from './TeacherAiAssistant';
 
 export const TeacherDesk: React.FC = () => {
   const {
@@ -53,9 +56,11 @@ export const TeacherDesk: React.FC = () => {
     resendDispatch,
     showToast,
     gradeCards,
+    timelineEntries,
+    replyToParentMessage,
   } = useAuth();
 
-  const [teacherActiveTab, setTeacherActiveTab] = useState<'dispatch' | 'gradebook' | 'accounts' | 'staff' | 'directory' | 'about'>('dispatch');
+  const [teacherActiveTab, setTeacherActiveTab] = useState<'dispatch' | 'gradebook' | 'assistant' | 'accounts' | 'staff' | 'directory' | 'about'>('dispatch');
   const [category, setCategory] = useState<EntryType>('note');
   const [recipientScope, setRecipientScope] = useState<'class' | 'individual' | 'group'>('class');
   const [selectedPupilNames, setSelectedPupilNames] = useState<string[]>([]);
@@ -68,6 +73,7 @@ export const TeacherDesk: React.FC = () => {
   const [isPosting, setIsPosting] = useState<boolean>(false);
   const [lastAutosave, setLastAutosave] = useState<string>('Just now');
   const [profilePupil, setProfilePupil] = useState<Pupil | null>(null);
+  const [parentReplyDrafts, setParentReplyDrafts] = useState<Record<string, string>>({});
 
   // Sign-off ledger state
   const [showSignOffQueue, setShowSignOffQueue] = useState<boolean>(true);
@@ -80,6 +86,8 @@ export const TeacherDesk: React.FC = () => {
   const assignedClass = currentUser?.class || 'Class III A';
   const isAuthorized = Boolean(currentUser?.isAuthorized);
   const classPupils = getPupilsForClass(assignedClass);
+  const classChildIds = new Set(classPupils.map((pupil) => PUPIL_CHILD_IDS[pupil.id] || pupil.id));
+  const parentMessages = timelineEntries.filter((entry) => classChildIds.has(entry.childId)).flatMap((entry) => (entry.parentMessages || []).map((message) => ({ entry, message }))).slice(0, 8);
   const selectedPupilGradeCard = profilePupil
     ? gradeCards.find((card) => card.pupilId === PUPIL_CHILD_IDS[profilePupil.id] || card.pupilId === profilePupil.id)
       ?? createDefaultGradeCardForPupil(PUPIL_CHILD_IDS[profilePupil.id] || profilePupil.id, profilePupil.name, 'Section A (Oak)', 'Class III (Year 3)', currentUser?.name || 'Aman Raj')
@@ -201,6 +209,7 @@ export const TeacherDesk: React.FC = () => {
           <div className="flex flex-wrap items-center gap-1 rounded-xl bg-[#e8e2d8] p-1 shadow-inner">
             <button type="button" onClick={() => setTeacherActiveTab('dispatch')} className={`flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-bold ${teacherActiveTab === 'dispatch' ? 'bg-[#fdfaf6] text-[#1a1410] shadow-sm' : 'text-[#6b5a48]'}`}><Send className="w-4 h-4 text-[#8a6f5a]" />Daily Dispatch &amp; Log</button>
             <button type="button" onClick={() => setTeacherActiveTab('gradebook')} className={`flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-bold ${teacherActiveTab === 'gradebook' ? 'bg-[#fdfaf6] text-[#1a1410] shadow-sm' : 'text-[#6b5a48]'}`}><GraduationCap className="w-4 h-4 text-[#2a4a35]" />Gradebook <span className="rounded-full bg-[#d4e8da] px-1.5 py-0.5 text-[9px] text-[#1e3828]">Marks</span></button>
+            <button type="button" onClick={() => setTeacherActiveTab('assistant')} className={`flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-bold ${teacherActiveTab === 'assistant' ? 'bg-[#fdfaf6] text-[#1a1410] shadow-sm' : 'text-[#6b5a48]'}`}><Sparkles className="w-4 h-4 text-[#7a4e10]" />AI Assist</button>
             <button type="button" onClick={() => { setTeacherActiveTab('dispatch'); setShowSignOffQueue(true); window.setTimeout(() => document.getElementById('awaiting-signoff-ledger')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 0); }} className="flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-bold text-[#6b5a48]"><Clock className="w-4 h-4 text-[#7a4e10]" />Sign-offs ({pendingSignOffs.length})</button>
             {isAuthorized && <button type="button" onClick={() => setTeacherActiveTab('accounts')} className={`flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-bold ${teacherActiveTab === 'accounts' ? 'bg-[#fdfaf6] text-[#1a1410] shadow-sm' : 'text-[#6b5a48]'}`}><UserPlus className="w-4 h-4 text-[#2a4a35]" />Parent Accounts</button>}
             {isAuthorized && <button type="button" onClick={() => setTeacherActiveTab('staff')} className={`flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-bold ${teacherActiveTab === 'staff' ? 'bg-[#fdfaf6] text-[#1a1410] shadow-sm' : 'text-[#6b5a48]'}`}><GraduationCap className="w-4 h-4 text-[#7a4e10]" />Teacher Accounts</button>}
@@ -390,6 +399,8 @@ export const TeacherDesk: React.FC = () => {
       ) : teacherActiveTab === 'gradebook' ? (
         /* PUPIL GRADEBOOK ASSESSOR & MARKS STUDIO */
         <GradeCardEditor />
+      ) : teacherActiveTab === 'assistant' ? (
+        <TeacherAiAssistant />
       ) : (
         /* MAIN DISPATCH & LEDGER DESK */
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
@@ -1090,6 +1101,10 @@ export const TeacherDesk: React.FC = () => {
 
         {/* Right Column (4 cols): Classroom Desk & Analytics */}
         <aside className="lg:col-span-4 space-y-6">
+          <section className="rounded-2xl border border-[#d4cdc4] bg-[#fdfaf6] p-5 shadow-sm">
+            <div className="flex items-center justify-between border-b border-[#e8e2d8] pb-3"><div className="flex items-center gap-2"><MessageSquare className="h-4 w-4 text-[#2a5038]" /><h3 className="font-serif text-base text-[#1a1410]">Parent messages</h3></div><span className="rounded-full bg-[#edf7ef] px-2 py-0.5 text-[10px] font-bold text-[#1e3828]">{parentMessages.length}</span></div>
+            <div className="mt-3 space-y-3">{parentMessages.length ? parentMessages.map(({ entry, message }) => <article key={message.id} className="rounded-xl border border-[#e8e2d8] bg-[#f7f3ed] p-3"><p className="text-[11px] font-bold text-[#1a1410]">{entry.title}</p><p className="mt-1 text-xs text-[#5a4f45]">Parent: “{message.text}”</p>{message.teacherReplyText ? <div className="mt-2 rounded-lg bg-[#d4e8da] p-2 text-xs text-[#1e3828]">Your reply: {message.teacherReplyText}</div> : <div className="mt-2 flex gap-1"><input value={parentReplyDrafts[message.id] || ''} onChange={(event) => setParentReplyDrafts((previous) => ({ ...previous, [message.id]: event.target.value }))} onKeyDown={(event) => { if (event.key === 'Enter') { replyToParentMessage(entry.id, message.id, parentReplyDrafts[message.id] || ''); setParentReplyDrafts((previous) => ({ ...previous, [message.id]: '' })); } }} placeholder="Reply to parent…" className="min-w-0 flex-1 rounded-lg border border-[#d4cdc4] bg-white px-2 py-1.5 text-xs outline-none" /><button type="button" onClick={() => { replyToParentMessage(entry.id, message.id, parentReplyDrafts[message.id] || ''); setParentReplyDrafts((previous) => ({ ...previous, [message.id]: '' })); }} className="rounded-lg bg-[#1a1410] px-2 py-1 text-[10px] font-bold text-white">Reply</button></div>}</article>) : <p className="rounded-xl bg-[#f7f3ed] p-3 text-xs text-[#6b5a48]">No parent messages yet.</p>}</div>
+          </section>
           {/* Widget 1: Classroom Desk & Roster */}
           <div className="bg-[#fdfaf6] rounded-2xl p-5 border border-[#d4cdc4] shadow-sm space-y-4">
             <div className="flex items-center justify-between pb-3 border-b border-[#e8e2d8]">

@@ -18,7 +18,12 @@ export default defineConfig(() => {
       // Disable file watching when DISABLE_HMR is true to save CPU during agent edits.
       watch: process.env.DISABLE_HMR === 'true' ? null : {},
       proxy: {
-        '/api': 'http://localhost:3001',
+        // Use IPv4 explicitly: on some Windows machines `localhost` resolves
+        // to an unavailable IPv6 endpoint and makes AI requests fail.
+        '/api': {
+          target: 'http://127.0.0.1:3001',
+          changeOrigin: true,
+        },
       },
     },
   };

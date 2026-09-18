@@ -21,6 +21,14 @@ import {
   Award,
   Download,
   GraduationCap,
+  Menu,
+  X,
+  LayoutDashboard,
+  CalendarDays,
+  ClipboardCheck,
+  ReceiptText,
+  UserCircle,
+  MessageSquare,
 } from 'lucide-react';
 import { EntryType, TimelineEntry } from '../types';
 import { GradeCardView } from './GradeCardView';
@@ -29,6 +37,7 @@ import { PaymentCheckoutModal } from './PaymentCheckoutModal';
 import { PUPIL_CHILD_IDS, PUPILS } from '../data/mockData';
 import { PupilPerformanceGraph } from './PerformanceGraph';
 import { ClassSchedulePanel } from './ClassSchedulePanel';
+import { ParentMessageHelper } from './ParentMessageHelper';
 
 export const ParentTimeline: React.FC = () => {
   const {
@@ -54,6 +63,13 @@ export const ParentTimeline: React.FC = () => {
   const [quickNoteInputs, setQuickNoteInputs] = useState<Record<string, string>>({});
   const [markedSeenMap, setMarkedSeenMap] = useState<Record<string, boolean>>({});
   const [paymentEntryId, setPaymentEntryId] = useState<string | null>(null);
+  const [selectedFee, setSelectedFee] = useState<{ id: string; label: string; amount: number } | null>(null);
+  const [paidFeeIds, setPaidFeeIds] = useState<string[]>([]);
+  const [showParentMenu, setShowParentMenu] = useState(false);
+  const [activeParentPanel, setActiveParentPanel] = useState<'attendance' | 'receipts' | 'profile' | null>(null);
+  const [teacherChatText, setTeacherChatText] = useState('');
+  const [isTeacherChatOpen, setIsTeacherChatOpen] = useState(false);
+  const [isParentWritingHelpOpen, setIsParentWritingHelpOpen] = useState(false);
 
   // A parent must only ever see the pupils explicitly assigned to their
   // account. The shared school roster is used by the teacher workspace only.
@@ -158,7 +174,10 @@ export const ParentTimeline: React.FC = () => {
     setQuickNoteInputs((prev) => ({ ...prev, [entryId]: val }));
   };
 
-  const openPaymentCheckout = (entryId: string) => setPaymentEntryId(entryId);
+  const openPaymentCheckout = (entryId: string, label = 'Natural History Museum workshop trip', amount = 1500) => {
+    setSelectedFee({ id: entryId, label, amount });
+    setPaymentEntryId(entryId);
+  };
 
   const handleSendNote = (entryId: string) => {
     const text = quickNoteInputs[entryId] || '';
@@ -168,6 +187,15 @@ export const ParentTimeline: React.FC = () => {
     }
     sendTeacherNote(entryId, text);
     setQuickNoteInputs((prev) => ({ ...prev, [entryId]: '' }));
+  };
+
+  const handleTeacherChat = () => {
+    if (!teacherChatText.trim()) { showToast('Write a message for the class teacher first.', 'error'); return; }
+    const messageEntry = childEntries[0];
+    if (!messageEntry) { showToast('There is no school record available for this message.', 'error'); return; }
+    sendTeacherNote(messageEntry.id, teacherChatText);
+    setTeacherChatText('');
+    showToast('Your message was sent to the class teacher.', 'success');
   };
 
   const toggleMarkSeen = (entryId: string) => {
@@ -183,19 +211,47 @@ export const ParentTimeline: React.FC = () => {
   const readingPct = Math.round(
     (activeChild.readingNights.completed / activeChild.readingNights.target) * 100
   );
+  const chatMessages = childEntries.flatMap((entry) => (entry.parentMessages || []).map((message) => ({ entryId: entry.id, message })));
+
+  const openParentSection = (section: 'dashboard' | 'timetable' | 'attendance' | 'results' | 'fees' | 'receipts' | 'profile' | 'messages') => {
+    setShowParentMenu(false);
+    setActiveParentPanel(section === 'attendance' || section === 'receipts' || section === 'profile' ? section : null);
+    if (section === 'results') {
+      setParentViewSection('gradebook');
+      window.setTimeout(() => window.scrollTo({ top: 0, behavior: 'smooth' }), 0);
+      return;
+    }
+    if (section === 'dashboard') setParentViewSection('chronicle');
+    const actions: Record<'dashboard' | 'timetable' | 'attendance' | 'results' | 'fees' | 'receipts' | 'profile' | 'messages', () => void> = {
+      dashboard: () => window.scrollTo({ top: 0, behavior: 'smooth' }),
+      timetable: () => document.getElementById('parent-timetable')?.scrollIntoView({ behavior: 'smooth', block: 'start' }),
+      attendance: () => document.getElementById('parent-detail-panel')?.scrollIntoView({ behavior: 'smooth', block: 'start' }),
+      results: () => undefined,
+      fees: () => document.getElementById('parent-fees')?.scrollIntoView({ behavior: 'smooth', block: 'center' }),
+      receipts: () => document.getElementById('parent-detail-panel')?.scrollIntoView({ behavior: 'smooth', block: 'start' }),
+      profile: () => document.getElementById('parent-detail-panel')?.scrollIntoView({ behavior: 'smooth', block: 'start' }),
+      messages: () => document.getElementById('parent-messages')?.scrollIntoView({ behavior: 'smooth', block: 'center' }),
+    };
+    window.setTimeout(actions[section], 0);
+  };
 
   return (
     <div className="max-w-[1240px] mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-6">
+      {isTeacherChatOpen && <div role="dialog" aria-modal="true" aria-label="Chat with class teacher" onClick={() => setIsTeacherChatOpen(false)} className="fixed inset-0 z-[150] flex items-end justify-center bg-[#14100c]/60 p-0 sm:items-center sm:p-4"><section onClick={(event) => event.stopPropagation()} className="w-full max-w-lg rounded-t-2xl bg-[#fdfaf6] shadow-2xl sm:rounded-2xl"><div className="flex items-center justify-between border-b border-[#e8e2d8] p-4"><div><h2 className="font-serif text-lg text-[#1a1410]">Aman Raj</h2><p className="text-xs text-[#2a5038]">Class Teacher • Human replies only</p></div><button type="button" onClick={() => setIsTeacherChatOpen(false)} className="rounded-full p-2 text-[#6b5a48] hover:bg-[#ede4d9]" aria-label="Close chat"><X className="h-5 w-5" /></button></div><div className="max-h-72 space-y-3 overflow-y-auto bg-[#f7f3ed] p-4">{chatMessages.length ? chatMessages.map(({ message }) => <div key={message.id} className="space-y-2"><div className="ml-auto max-w-[88%] rounded-2xl rounded-tr-sm bg-[#d4e8da] p-3 text-xs text-[#1a1410]"><p className="font-bold text-[#1e3828]">You</p><p className="mt-1">{message.text}</p></div>{message.teacherReplyText && <div className="max-w-[88%] rounded-2xl rounded-tl-sm bg-white p-3 text-xs text-[#1a1410] shadow-sm"><p className="font-bold text-[#2a5038]">Teacher</p><p className="mt-1">{message.teacherReplyText}</p></div>}</div>) : <p className="text-center text-xs text-[#6b5a48]">Start a conversation with the class teacher.</p>}</div><button type="button" onClick={() => setIsParentWritingHelpOpen((open) => !open)} className="mx-3 mt-3 inline-flex items-center gap-1.5 rounded-lg border border-[#b4d4be] bg-[#edf7ef] px-3 py-1.5 text-xs font-bold text-[#1e3828]"><Sparkles className="h-3.5 w-3.5" />Writing help</button>{isParentWritingHelpOpen && <ParentMessageHelper onUseDraft={(draft) => { setTeacherChatText(draft); setIsParentWritingHelpOpen(false); }} />}<div className="flex gap-2 border-t border-[#e8e2d8] p-3"><input autoFocus value={teacherChatText} onChange={(event) => setTeacherChatText(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); handleTeacherChat(); } }} placeholder="Type your message…" className="min-w-0 flex-1 rounded-xl border border-[#d4cdc4] bg-[#f7f3ed] px-3 py-2.5 text-sm outline-none focus:border-[#2a5038]" /><button type="button" onClick={handleTeacherChat} className="rounded-xl bg-[#1a1410] px-4 py-2 text-xs font-bold text-[#fdfaf6] hover:bg-[#2a5038]"><Send className="h-4 w-4" /></button></div></section></div>}
+      {showParentMenu && <div className="fixed inset-0 z-[100] bg-[#1a1410]/45 backdrop-blur-sm" onClick={() => setShowParentMenu(false)}><aside role="dialog" aria-modal="true" aria-label="Parent dashboard menu" onClick={(event) => event.stopPropagation()} className="h-full w-[min(86vw,360px)] overflow-y-auto bg-[#fdfaf6] text-[#1a1410] shadow-2xl animate-in slide-in-from-left duration-200"><div className="border-b border-[#d4cdc4] bg-[#2a5038] p-6 text-[#fdfaf6]"><div className="flex items-start justify-between"><div><p className="text-[10px] font-bold uppercase tracking-wider text-[#d4e8da]">Parent dashboard</p><h2 className="mt-1 font-serif text-2xl">{currentUser?.name || 'Parent'}</h2><p className="mt-1 text-xs text-[#edf7ef]">Viewing {activeChild.fullName}</p></div><button type="button" onClick={() => setShowParentMenu(false)} className="rounded-full p-1.5 text-[#fdfaf6] hover:bg-white/15" aria-label="Close menu"><X className="h-5 w-5" /></button></div><div className="mx-auto mt-5 flex h-16 w-16 items-center justify-center rounded-full border-4 border-[#d4e8da] bg-[#fdfaf6] font-serif text-3xl text-[#2a5038]">{activeChild.firstName[0]}</div></div><nav className="py-2" aria-label="Parent dashboard sections">{[
+        ['dashboard', 'My Dashboard', LayoutDashboard], ['timetable', 'Timetable & Events', CalendarDays], ['attendance', 'My Attendance', ClipboardCheck], ['results', 'Report Card & Results', Award], ['messages', 'Teacher Messages', MessageSquare], ['fees', 'My Fee Details', CreditCard], ['receipts', 'My Receipts', ReceiptText], ['profile', 'My Child Profile', UserCircle],
+      ].map(([id, label, Icon]) => <button key={String(id)} type="button" onClick={() => openParentSection(id as Parameters<typeof openParentSection>[0])} className="flex w-full items-center gap-4 border-b border-[#e8e2d8] px-6 py-4 text-left text-sm font-semibold text-[#1a1410] hover:bg-[#edf7ef]"><Icon className="h-5 w-5 text-[#2a5038]" />{String(label)}</button>)}</nav></aside></div>}
       {/* Ledger Header & Child Switcher */}
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 pb-4 border-b border-[#d4cdc4]">
         <div className="space-y-1.5">
           <div className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-[#6b5a48]">
+            <button type="button" onClick={() => setShowParentMenu(true)} className="mr-1 flex h-8 items-center gap-1.5 rounded-lg bg-[#1a1410] px-2.5 text-[#d4e8da] hover:bg-[#2a5038]" aria-label="Open parent dashboard menu"><Menu className="h-4 w-4" /><span className="text-[10px] font-bold">Menu</span></button>
             <BookOpen className="w-4 h-4 text-[#8a6f5a]" />
             <span>Saraswati Vidya Mandir &bull; Parent Ledger</span>
           </div>
 
           <h1 className="font-serif text-3xl sm:text-4xl text-[#1a1410] tracking-tight">
-            Family Chronicle &amp; Daily Log
+            Parent Dashboard
           </h1>
 
           <p className="text-xs text-[#6b5a48] font-medium">
@@ -288,6 +344,13 @@ export const ParentTimeline: React.FC = () => {
         </div>
       </div>
 
+      {activeParentPanel && <section id="parent-detail-panel" className="rounded-2xl border border-[#d4cdc4] bg-[#fdfaf6] p-5 shadow-sm animate-in fade-in duration-200">
+        <div className="flex items-start justify-between gap-4 border-b border-[#e8e2d8] pb-4"><div>{activeParentPanel === 'attendance' && <><p className="text-[11px] font-bold uppercase tracking-wider text-[#2a5038]">My Attendance</p><h2 className="mt-1 font-serif text-2xl text-[#1a1410]">{activeChild.fullName}’s attendance</h2></>}{activeParentPanel === 'receipts' && <><p className="text-[11px] font-bold uppercase tracking-wider text-[#2a5038]">My Receipts</p><h2 className="mt-1 font-serif text-2xl text-[#1a1410]">Payment receipts</h2></>}{activeParentPanel === 'profile' && <><p className="text-[11px] font-bold uppercase tracking-wider text-[#2a5038]">My Child Profile</p><h2 className="mt-1 font-serif text-2xl text-[#1a1410]">{activeChild.fullName}</h2></>}</div><button type="button" onClick={() => setActiveParentPanel(null)} className="rounded-lg p-2 text-[#6b5a48] hover:bg-[#ede4d9]" aria-label="Close panel"><X className="h-4 w-4" /></button></div>
+        {activeParentPanel === 'attendance' && <div className="mt-5 grid gap-3 sm:grid-cols-3"><div className="rounded-xl bg-[#edf7ef] p-4"><p className="text-[10px] font-bold uppercase text-[#2a5038]">Attendance</p><p className="mt-1 font-serif text-3xl text-[#1a1410]">{getGradeCardForChild(activeChild.id)?.attendancePercentage ?? 0}%</p></div><div className="rounded-xl bg-[#f7f3ed] p-4"><p className="text-[10px] font-bold uppercase text-[#6b5a48]">Days present</p><p className="mt-1 font-serif text-3xl text-[#1a1410]">{getGradeCardForChild(activeChild.id)?.daysPresent ?? 0}</p></div><div className="rounded-xl bg-[#f7f3ed] p-4"><p className="text-[10px] font-bold uppercase text-[#6b5a48]">Working days</p><p className="mt-1 font-serif text-3xl text-[#1a1410]">{getGradeCardForChild(activeChild.id)?.daysTotal ?? 0}</p></div></div>}
+        {activeParentPanel === 'receipts' && <div className="mt-5 space-y-3">{filteredEntries.filter((entry) => entry.paid).length ? filteredEntries.filter((entry) => entry.paid).map((entry) => <div key={entry.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[#b4d4be] bg-[#edf7ef] p-4"><div><p className="font-bold text-[#1a1410]">{entry.title}</p><p className="mt-1 text-xs text-[#5a4f45]">{entry.seenAt || 'Payment confirmed'}</p></div><button type="button" onClick={() => showToast('Your payment receipt is ready to download.', 'success')} className="rounded-lg bg-[#1a1410] px-3 py-2 text-xs font-bold text-[#fdfaf6]">Download receipt</button></div>) : <div className="rounded-xl bg-[#f7f3ed] p-5 text-sm text-[#5a4f45]">No receipts yet. Paid fees will appear here automatically.</div>}</div>}
+        {activeParentPanel === 'profile' && <div className="mt-5 grid gap-3 sm:grid-cols-2"><div className="rounded-xl bg-[#f7f3ed] p-4"><p className="text-[10px] font-bold uppercase text-[#6b5a48]">Class</p><p className="mt-1 text-lg font-bold text-[#1a1410]">{activeChild.year} {activeChild.class}</p></div><div className="rounded-xl bg-[#f7f3ed] p-4"><p className="text-[10px] font-bold uppercase text-[#6b5a48]">Reading progress</p><p className="mt-1 text-lg font-bold text-[#1a1410]">{activeChild.readingNights.completed} of {activeChild.readingNights.target} nights</p></div><p className="sm:col-span-2 rounded-xl border border-[#e8e2d8] p-4 text-sm text-[#5a4f45]">For address, health, or guardian-contact changes, please contact the school office. Your school keeps these records securely.</p></div>}
+      </section>}
+
       {parentViewSection === 'gradebook' ? (
         /* GRADEBOOK SECTION */
         <div className="space-y-6">
@@ -348,7 +411,7 @@ export const ParentTimeline: React.FC = () => {
       {/* Main Grid: Left Column (Timeline) & Right Column (Sidebar) */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
         {/* Left Column: Timeline Spine & Entries (8 cols) */}
-        <div className="lg:col-span-8 relative">
+        <div id="parent-messages" className="lg:col-span-8 relative">
           {/* Vertical axis line */}
           <div
             className={`absolute left-4 sm:left-6 top-6 bottom-4 w-px bg-[#d4cdc4] transition-opacity duration-300 ${
@@ -482,40 +545,23 @@ export const ParentTimeline: React.FC = () => {
           {/* Card 1: Term at a Glance Overview */}
           <PupilPerformanceGraph gradeCard={getGradeCardForChild(activeChild.id)} />
 
-          <ClassSchedulePanel className={activeChild.year} />
+          <div id="parent-timetable"><ClassSchedulePanel className={activeChild.year} /></div>
 
-          {/* Card 1: Term at a Glance Overview */}
-          <div className="bg-[#fdfaf6] rounded-2xl p-5 border border-[#d4cdc4] shadow-sm space-y-5">
+          {/* One place for all school charges and payment receipts. */}
+          <div id="parent-fees" className="bg-[#fdfaf6] rounded-2xl p-5 border border-[#d4cdc4] shadow-sm space-y-5">
             <div className="flex items-center justify-between pb-3 border-b border-[#e8e2d8]">
               <div className="flex items-center gap-2">
-                <Calendar className="w-4 h-4 text-[#8a6f5a]" />
-                <h3 className="font-serif text-base font-medium text-[#1a1410]">Term at a Glance</h3>
+                <CreditCard className="w-4 h-4 text-[#8a6f5a]" />
+                <h3 className="font-serif text-base font-medium text-[#1a1410]">Fee Centre</h3>
               </div>
-              <span className="px-2 py-0.5 rounded bg-[#e8e2d8] text-[10px] font-bold uppercase text-[#5a4f45]">
-                {activeChild.year}
-              </span>
+              <span className="px-2 py-0.5 rounded bg-[#f5ddd9] text-[10px] font-bold uppercase text-[#7a1e1e]">₹{(37500 - paidFeeIds.reduce((total, id) => total + (id === 'tuition' ? 30000 : id === 'bus' ? 6000 : 1500), 0)).toLocaleString('en-IN')} due</span>
             </div>
-
-            {/* Fee Alert Box */}
-            <div className="p-3.5 rounded-xl bg-[#f5ddd9] border border-[#e4a09a]/50 space-y-2">
-              <div className="flex items-center justify-between text-xs font-bold text-[#7a1e1e]">
-                <span className="flex items-center gap-1.5">
-                  <CreditCard className="w-3.5 h-3.5" />
-                  Outstanding Contribution
-                </span>
-                <span className="font-serif text-sm">₹1,500</span>
-              </div>
-              <p className="text-[11px] text-[#7a1e1e]/85">
-                Natural History Museum workshop trip. Due in 10 days.
-              </p>
-              <button
-                type="button"
-                onClick={() => openPaymentCheckout('entry-a')}
-                className="w-full py-2 px-3 rounded-lg bg-[#7a1e1e] text-[#fdfaf6] hover:bg-[#5a1414] font-bold text-xs transition-colors"
-              >
-                Review and Pay (₹1,500)
-              </button>
-            </div>
+            <p className="text-xs text-[#6b5a48]">All charges for {activeChild.fullName} are listed here. Pay each item securely and download its receipt after confirmation.</p>
+            <div className="space-y-2">{[
+              { id: 'tuition', label: 'Tuition fee — Term 2', detail: 'Academic tuition • Due 05 Nov', amount: 30000 },
+              { id: 'bus', label: 'School bus fee — Term 2', detail: 'Morning & afternoon route • Due 05 Nov', amount: 6000 },
+              { id: 'activity', label: 'Museum workshop contribution', detail: 'Transport, entry & materials • Due 24 Oct', amount: 1500 },
+            ].map((fee) => { const paid = paidFeeIds.includes(fee.id); return <div key={fee.id} className={`rounded-xl border p-3 ${paid ? 'border-[#b4d4be] bg-[#edf7ef]' : 'border-[#e8e2d8] bg-[#f7f3ed]'}`}><div className="flex items-start justify-between gap-3"><div><p className="text-xs font-bold text-[#1a1410]">{fee.label}</p><p className="mt-1 text-[11px] text-[#6b5a48]">{fee.detail}</p></div><strong className="font-serif text-base text-[#1a1410]">₹{fee.amount.toLocaleString('en-IN')}</strong></div><div className="mt-3 flex justify-end">{paid ? <button type="button" onClick={() => showToast(`Receipt for ${fee.label} is ready to download.`, 'success')} className="rounded-lg border border-[#b4d4be] bg-white px-3 py-1.5 text-[11px] font-bold text-[#1e3828]">Receipt ready</button> : <button type="button" onClick={() => openPaymentCheckout(fee.id, fee.label, fee.amount)} className="rounded-lg bg-[#1a1410] px-3 py-1.5 text-[11px] font-bold text-[#fdfaf6] hover:bg-[#2a5038]">Pay now</button>}</div></div>; })}</div>
 
             {/* Upcoming Dates List */}
             <div className="space-y-2">
@@ -559,8 +605,8 @@ export const ParentTimeline: React.FC = () => {
               </ul>
             </div>
 
-            {/* Classroom Leadership */}
-            <div className="pt-3 border-t border-[#e8e2d8]">
+            {/* Direct parent-to-teacher chat */}
+            <div id="teacher-chat" className="pt-3 border-t border-[#e8e2d8]">
               <span className="text-[10px] font-bold uppercase tracking-wider text-[#6b5a48] block mb-2">
                 Classroom Leadership
               </span>
@@ -576,15 +622,13 @@ export const ParentTimeline: React.FC = () => {
                     Class Teacher &bull; {activeChild.class} Class
                   </p>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => showToast('Messaging window open with class teacher.', 'info')}
-                  aria-label="Send direct email"
-                  className="w-8 h-8 rounded-full bg-[#e8e2d8] text-[#6b5a48] hover:text-[#1a1410] hover:bg-[#d4cdc4] flex items-center justify-center transition-colors shrink-0"
-                >
-                  <Mail className="w-4 h-4" />
-                </button>
+                <button type="button" onClick={() => setIsTeacherChatOpen(true)} aria-label="Open chat with class teacher" className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#e8e2d8] text-[#6b5a48] transition-colors hover:bg-[#d4e8da] hover:text-[#2a5038]"><Mail className="h-4 w-4" /></button>
               </div>
+              <div className="mt-3 flex gap-2 rounded-xl border border-[#d4cdc4] bg-[#f7f3ed] p-1.5">
+                <input type="text" value={teacherChatText} onChange={(event) => setTeacherChatText(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); handleTeacherChat(); } }} placeholder="Write a message to the class teacher…" className="min-w-0 flex-1 bg-transparent px-2 text-xs outline-none placeholder:text-[#8a6f5a]" />
+                <button type="button" onClick={() => { setIsTeacherChatOpen(true); }} className="rounded-lg bg-[#1a1410] px-3 py-2 text-xs font-bold text-[#fdfaf6] hover:bg-[#2a5038]">Open chat</button>
+              </div>
+              <p className="mt-2 text-[10px] text-[#6b5a48]">For classroom questions and non-urgent updates. The teacher will be notified.</p>
             </div>
           </div>
 
@@ -777,10 +821,15 @@ export const ParentTimeline: React.FC = () => {
               )}
       <PaymentCheckoutModal
         isOpen={Boolean(paymentEntryId)}
-        onClose={() => setPaymentEntryId(null)}
+        onClose={() => { setPaymentEntryId(null); setSelectedFee(null); }}
         pupilName={activeChild.fullName}
         parentName={currentUser?.name || 'Parent / Guardian'}
-        onPaymentConfirmed={(reference) => { if (paymentEntryId) payFee(paymentEntryId, reference); }}
+        amount={selectedFee?.amount}
+        description={selectedFee?.label}
+        onPaymentConfirmed={(reference) => {
+          if (paymentEntryId) payFee(paymentEntryId, reference);
+          if (selectedFee) setPaidFeeIds((previous) => previous.includes(selectedFee.id) ? previous : [...previous, selectedFee.id]);
+        }}
       />
     </div>
           </div>

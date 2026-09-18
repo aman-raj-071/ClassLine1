@@ -11,7 +11,13 @@ const EnvSchema = z.object({
   CORS_ORIGIN: z.string().default('*'),
   RATE_LIMIT_MAX_ATTEMPTS: z.coerce.number().default(5),
   RATE_LIMIT_WINDOW_MINUTES: z.coerce.number().default(15),
-  GEMINI_API_KEY: z.string().optional(),
+  AI_PROVIDER: z.enum(['bedrock', 'gemini', 'local']).default('local'),
+  BEDROCK_REGION: z.string().optional(),
+  BEDROCK_MODEL_ID: z.string().default('amazon.nova-lite-v1:0'),
+  AI_MAX_OUTPUT_TOKENS: z.coerce.number().min(32).max(1024).default(220),
+  GEMINI_API_KEY: z.string().min(1).optional(),
+  GEMINI_MODEL_ID: z.string().default('gemini-3.6-flash'),
+  GEMINI_MAX_OUTPUT_TOKENS: z.coerce.number().min(64).max(2048).default(512),
 });
 
 const parsed = EnvSchema.safeParse(process.env);

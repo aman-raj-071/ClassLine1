@@ -7,10 +7,12 @@ interface PaymentCheckoutModalProps {
   onClose: () => void;
   pupilName: string;
   parentName: string;
+  amount?: number;
+  description?: string;
   onPaymentConfirmed: (reference: string) => void;
 }
 
-export const PaymentCheckoutModal: React.FC<PaymentCheckoutModalProps> = ({ isOpen, onClose, pupilName, parentName, onPaymentConfirmed }) => {
+export const PaymentCheckoutModal: React.FC<PaymentCheckoutModalProps> = ({ isOpen, onClose, pupilName, parentName, amount = 1500, description = 'Natural History Museum workshop trip', onPaymentConfirmed }) => {
   const [method, setMethod] = useState<'upi' | 'card'>('upi');
   const [isProcessing, setIsProcessing] = useState(false);
   const [receiptReference, setReceiptReference] = useState<string | null>(null);
@@ -27,9 +29,9 @@ export const PaymentCheckoutModal: React.FC<PaymentCheckoutModalProps> = ({ isOp
     doc.text(`Receipt reference: ${reference}`, 16, 59); doc.text(`Paid on: ${new Date().toLocaleString('en-IN')}`, 16, 65);
     doc.setDrawColor(212, 205, 196); doc.roundedRect(16, 75, 178, 70, 3, 3, 'S');
     const fields = [
-      ['Pupil', pupilName], ['Parent / guardian', parentName], ['Contribution', 'Natural History Museum workshop trip'],
+      ['Pupil', pupilName], ['Parent / guardian', parentName], ['Contribution', description],
       ['Payment method', method === 'upi' ? 'UPI via approved payment provider' : 'Card via approved payment provider'],
-      ['Amount received', 'INR 1,500.00'], ['Status', 'PAID - CONFIRMED'],
+      ['Amount received', `INR ${amount.toLocaleString('en-IN')}.00`], ['Status', 'PAID - CONFIRMED'],
     ];
     fields.forEach(([label, value], index) => { const y = 86 + index * 9; doc.setFont('helvetica', 'bold'); doc.setTextColor(107, 90, 72); doc.text(label, 23, y); doc.setFont('helvetica', 'normal'); doc.setTextColor(26, 20, 16); doc.text(value, 78, y); });
     doc.setFillColor(212, 232, 218); doc.roundedRect(16, 156, 178, 22, 3, 3, 'F'); doc.setTextColor(30, 56, 40); doc.setFont('helvetica', 'bold'); doc.setFontSize(10); doc.text('Payment confirmed - retain this receipt for your records.', 23, 169);

@@ -30,6 +30,28 @@ data endpoints. Set `AWS_REGION`, `TABLE_NAME`, `COGNITO_USER_POOL_ID`, and
 `COGNITO_CLIENT_ID` in `.env`; optionally set `DYNAMODB_ENDPOINT` for DynamoDB
 Local. The current frontend is demo-data driven and does not yet call this API.
 
+## Teacher AI Assist (Amazon Bedrock)
+
+ClassLine Assist is a teacher-only drafting tool. It can prepare a parent
+message, translate approved school text, and generate report-card narratives.
+It never sends a message, publishes a grade card, or creates an automatic reply.
+Teachers review and copy every draft into the normal workflow.
+
+For offline development, keep `AI_PROVIDER=local`. To use Amazon Bedrock:
+
+1. Set `AI_PROVIDER=bedrock`, `BEDROCK_REGION`, and `BEDROCK_MODEL_ID` in
+   `.env`. The default model is `amazon.nova-lite-v1:0` in `us-east-1`.
+2. Configure AWS credentials locally with an AWS profile or environment
+   credentials. Do not put credentials in frontend code or commit them to Git.
+3. Enable the chosen model in the Bedrock console for the selected Region.
+4. Give the development identity or deployed Lambda role only
+   `bedrock:InvokeModel` for that foundation-model ARN. The Amplify definition
+   already adds this least-privilege permission for Nova Lite.
+
+When deployed through Amplify, the API Lambda uses its IAM role automatically;
+no AWS secret is exposed to a browser. Production `/api/ai/*` routes require a
+teacher or administrator Cognito token.
+
 ## Quality checks
 
 Run `npm run lint`, `npm test`, and `npm run build` before shipping changes.

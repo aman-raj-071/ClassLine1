@@ -19,34 +19,22 @@ import {
 } from '../db/queries';
 import { ForbiddenError, NotFoundError } from '../utils/errors';
 import { logger } from '../utils/logger';
-import { env } from '../config/env';
+import { generateTeacherDraft } from '../services/ai/teacherAssistant';
 
 export const teacherRouter = Router();
 
 // Apply auth middlewares for all teacher routes
 teacherRouter.use(authenticate, authorize('teacher', 'admin'));
 
-/** Generate a concise, professional tutor narrative without exposing API keys to the browser. */
+/** Generate a concise, professional tutor narrative without exposing credentials to the browser. */
 teacherRouter.post('/grade-cards/narrative', async (req: Request, res: Response, next: NextFunction) => {
   try {
-    if (!env.GEMINI_API_KEY) {
-      return res.status(503).json({ error: 'AI narrative service is not configured.' });
-    }
     const { pupilName, cgpa, overallGrade, resultStatus, subjects } = req.body;
     if (typeof pupilName !== 'string' || typeof cgpa !== 'number' || !Array.isArray(subjects)) {
       return res.status(400).json({ error: 'Invalid grade-card narrative request.' });
     }
-    const subjectSummary = subjects.slice(0, 8).map((subject: { subject: string; marksObtained: number; grade: string }) => `${subject.subject}: ${subject.marksObtained}/100 (${subject.grade})`).join('; ');
-    const prompt = `Write one factual, supportive UK-English form-tutor narrative of 45-65 words for a school report. Do not invent facts, diagnoses, or personal traits. Refer to the pupil by first name only. Base it on: pupil ${pupilName}; CGPA ${cgpa}; overall grade ${overallGrade}; result ${resultStatus}; subjects ${subjectSummary}. Return only the narrative.`;
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=${env.GEMINI_API_KEY}`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { temperature: 0.35, maxOutputTokens: 130 } }),
-    });
-    if (!response.ok) throw new Error(`Gemini response ${response.status}`);
-    const data = await response.json() as { candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }> };
-    const narrative = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
-    if (!narrative) throw new Error('Gemini returned no narrative');
-    res.status(200).json({ narrative });
+    const result = await generateTeacherDraft({ task: 'grade_card_narrative', gradeCard: { pupilName, cgpa, overallGrade, resultStatus, subjects } });
+    res.status(200).json({ narrative: result.text, provider: result.provider });
   } catch (err) { next(err); }
 });
 

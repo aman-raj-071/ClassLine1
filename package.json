@@ -4,7 +4,8 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite --port=3000 --host=0.0.0.0",
+    "dev": "concurrently --kill-others-on-fail --names WEB,API --prefix-colors cyan,green \"npm run dev:web\" \"npm run dev:api\"",
+    "dev:web": "vite --port=3000 --host=0.0.0.0",
     "dev:api": "tsx watch backend/src/server.ts",
     "build": "vite build",
     "preview": "vite preview",
@@ -13,11 +14,11 @@
     "seed": "tsx scripts/seed.ts"
   },
   "dependencies": {
+    "@aws-sdk/client-bedrock-runtime": "^3.1135.0",
     "@aws-sdk/client-cognito-identity-provider": "^3.1133.0",
     "@aws-sdk/client-dynamodb": "^3.1133.0",
     "@aws-sdk/lib-dynamodb": "^3.1133.0",
     "@codegenie/serverless-express": "^5.0.0",
-    "@google/genai": "^2.4.0",
     "@tailwindcss/vite": "^4.1.14",
     "@vitejs/plugin-react": "^5.0.4",
     "aws-jwt-verify": "^5.2.1",
@@ -37,6 +38,7 @@
     "@types/node": "^22.14.0",
     "autoprefixer": "^10.4.21",
     "aws-sdk-client-mock": "^4.1.0",
+    "concurrently": "^10.0.5",
     "esbuild": "^0.25.0",
     "tailwindcss": "^4.1.14",
     "tsx": "^4.21.0",

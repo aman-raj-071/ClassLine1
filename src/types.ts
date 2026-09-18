@@ -51,8 +51,19 @@ export interface TimelineEntry {
   acknowledged?: boolean;
   replyText?: string;
   replyTime?: string;
+  teacherReplyText?: string;
+  teacherReplyTime?: string;
+  parentMessages?: ParentTeacherMessage[];
   paid?: boolean;
   markedSeen?: boolean;
+}
+
+export interface ParentTeacherMessage {
+  id: string;
+  text: string;
+  sentAt: string;
+  teacherReplyText?: string;
+  teacherReplyTime?: string;
 }
 
 export interface Dispatch {
