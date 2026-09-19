@@ -5,6 +5,7 @@ import { generateTeacherDraft } from '../services/ai/teacherAssistant';
 
 export const aiRouter = Router();
 
+// --- Existing Schemas ---
 const gradeCardSchema = z.object({
   pupilName: z.string().trim().min(1).max(100),
   cgpa: z.number().min(0).max(10),
@@ -33,6 +34,8 @@ const protectProductionAi = (...roles: ('parent' | 'teacher' | 'admin')[]) =>
       return authorize(...roles)(req, res, next);
     });
   };
+
+// --- Existing AI Routes ---
 
 aiRouter.post('/grade-card-narrative', protectProductionAi('teacher', 'admin'), async (req: Request, res: Response, next: NextFunction) => {
   try {
