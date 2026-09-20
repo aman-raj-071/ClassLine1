@@ -1,0 +1,10 @@
+strands-agents
+strands-agents-tools
+mcp
+fastmcp
+httpx
+beautifulsoup4
+python-dotenv
+boto3
+fastapi
+uvicorn

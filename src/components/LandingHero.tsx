@@ -48,7 +48,7 @@ export const LandingHero: React.FC<LandingHeroProps> = ({ onOpenLogin }) => {
             <span className="text-[#6b5a48]">&bull;</span>
             <span className="inline-flex items-center gap-1.5">
               <Zap className="w-3.5 h-3.5 text-[#f5e6c8]" />
-              Real-time Sync
+              School-managed access
             </span>
             <span className="text-[#6b5a48]">&bull;</span>
             <span className="inline-flex items-center gap-1.5">

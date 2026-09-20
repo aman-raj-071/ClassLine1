@@ -40,8 +40,8 @@ export const FeaturesSection: React.FC = () => {
       icon: Shield,
       iconBg: 'bg-[#e8dff0]',
       iconColor: 'text-[#4e3070]',
-      body: 'Access-code authentication, school-managed directory, fully GDPR-compliant. No social accounts, no advertising, no tracking.',
-      stat: 'Privacy-first &bull; India-hosted',
+      body: 'School-managed access, role-based workspaces, and a private directory. Sensitive information is shown only to people authorised by the school.',
+      stat: 'School-managed &bull; Privacy-focused',
     },
     {
       title: 'Teacher Composer',

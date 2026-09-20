@@ -22,7 +22,7 @@ export const Footer: React.FC = () => {
         <div className="flex flex-col sm:items-end text-center sm:text-right space-y-1">
           <div className="flex items-center justify-center sm:justify-end gap-1.5 text-[#2a4a35] font-semibold">
             <ShieldCheck className="w-4 h-4" />
-            <span>India-hosted &bull; Privacy-first &bull; End-to-End Encrypted</span>
+            <span>India-hosted &bull; Privacy-focused &bull; School-managed</span>
           </div>
           <p className="text-[11px] text-[#6b5a48]">
             ClassLine v1.0 &copy; 2026 &mdash; All communications are private and school-managed.

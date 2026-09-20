@@ -41,6 +41,7 @@ import { ClassSchedulePanel } from './ClassSchedulePanel';
 import { TeacherAccountManager } from './TeacherAccountManager';
 import { SchoolDirectory } from './SchoolDirectory';
 import { TeacherAiAssistant } from './TeacherAiAssistant';
+import { GradeNotesLibrary } from './GradeNotesLibrary';
 
 export const TeacherDesk: React.FC = () => {
   const {
@@ -60,7 +61,7 @@ export const TeacherDesk: React.FC = () => {
     replyToParentMessage,
   } = useAuth();
 
-  const [teacherActiveTab, setTeacherActiveTab] = useState<'dispatch' | 'gradebook' | 'assistant' | 'accounts' | 'staff' | 'directory' | 'about'>('dispatch');
+  const [teacherActiveTab, setTeacherActiveTab] = useState<'dispatch' | 'gradebook' | 'assistant' | 'notes' | 'accounts' | 'staff' | 'directory' | 'about'>('dispatch');
   const [category, setCategory] = useState<EntryType>('note');
   const [recipientScope, setRecipientScope] = useState<'class' | 'individual' | 'group'>('class');
   const [selectedPupilNames, setSelectedPupilNames] = useState<string[]>([]);
@@ -210,6 +211,7 @@ export const TeacherDesk: React.FC = () => {
             <button type="button" onClick={() => setTeacherActiveTab('dispatch')} className={`flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-bold ${teacherActiveTab === 'dispatch' ? 'bg-[#fdfaf6] text-[#1a1410] shadow-sm' : 'text-[#6b5a48]'}`}><Send className="w-4 h-4 text-[#8a6f5a]" />Daily Dispatch &amp; Log</button>
             <button type="button" onClick={() => setTeacherActiveTab('gradebook')} className={`flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-bold ${teacherActiveTab === 'gradebook' ? 'bg-[#fdfaf6] text-[#1a1410] shadow-sm' : 'text-[#6b5a48]'}`}><GraduationCap className="w-4 h-4 text-[#2a4a35]" />Gradebook <span className="rounded-full bg-[#d4e8da] px-1.5 py-0.5 text-[9px] text-[#1e3828]">Marks</span></button>
             <button type="button" onClick={() => setTeacherActiveTab('assistant')} className={`flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-bold ${teacherActiveTab === 'assistant' ? 'bg-[#fdfaf6] text-[#1a1410] shadow-sm' : 'text-[#6b5a48]'}`}><Sparkles className="w-4 h-4 text-[#7a4e10]" />AI Assist</button>
+            <button type="button" onClick={() => setTeacherActiveTab('notes')} className={`flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-bold ${teacherActiveTab === 'notes' ? 'bg-[#fdfaf6] text-[#1a1410] shadow-sm' : 'text-[#6b5a48]'}`}><FileText className="w-4 h-4 text-[#2a4a35]" />Grade Notes</button>
             <button type="button" onClick={() => { setTeacherActiveTab('dispatch'); setShowSignOffQueue(true); window.setTimeout(() => document.getElementById('awaiting-signoff-ledger')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 0); }} className="flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-bold text-[#6b5a48]"><Clock className="w-4 h-4 text-[#7a4e10]" />Sign-offs ({pendingSignOffs.length})</button>
             {isAuthorized && <button type="button" onClick={() => setTeacherActiveTab('accounts')} className={`flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-bold ${teacherActiveTab === 'accounts' ? 'bg-[#fdfaf6] text-[#1a1410] shadow-sm' : 'text-[#6b5a48]'}`}><UserPlus className="w-4 h-4 text-[#2a4a35]" />Parent Accounts</button>}
             {isAuthorized && <button type="button" onClick={() => setTeacherActiveTab('staff')} className={`flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-bold ${teacherActiveTab === 'staff' ? 'bg-[#fdfaf6] text-[#1a1410] shadow-sm' : 'text-[#6b5a48]'}`}><GraduationCap className="w-4 h-4 text-[#7a4e10]" />Teacher Accounts</button>}
@@ -400,7 +402,18 @@ export const TeacherDesk: React.FC = () => {
         /* PUPIL GRADEBOOK ASSESSOR & MARKS STUDIO */
         <GradeCardEditor />
       ) : teacherActiveTab === 'assistant' ? (
-        <TeacherAiAssistant />
+        <TeacherAiAssistant pupils={classPupils} onSendDraft={(draft, topic, audience, pupilName) => {
+          addDispatch({
+            category: 'note',
+            title: topic,
+            body: draft,
+            targetScope: audience === 'whole_class' ? 'class' : 'individual',
+            selectedPupils: audience === 'whole_class' ? [] : [pupilName || ''],
+            recipients: audience === 'whole_class' ? classPupils.length : 1,
+          });
+        }} />
+      ) : teacherActiveTab === 'notes' ? (
+        <GradeNotesLibrary assignedClass={assignedClass} />
       ) : (
         /* MAIN DISPATCH & LEDGER DESK */
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">

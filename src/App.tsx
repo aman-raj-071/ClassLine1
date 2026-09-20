@@ -11,6 +11,8 @@ import { TeacherDesk } from './components/TeacherDesk';
 import { LoginModal } from './components/LoginModal';
 import { Toast } from './components/Toast';
 import { Footer } from './components/Footer';
+import { WebsiteAssistantWidget } from './components/WebsiteAssistantWidget';
+import { AppErrorBoundary } from './components/AppErrorBoundary';
 import { UserRole } from './types';
 
 const AppContent: React.FC = () => {
@@ -75,14 +77,19 @@ const AppContent: React.FC = () => {
 
       {/* Floating System Toast */}
       <Toast />
+
+      {/* Website-grounded help bot; not used for private parent-teacher chat. */}
+      <WebsiteAssistantWidget />
     </div>
   );
 };
 
 export default function App() {
   return (
-    <AuthProvider>
-      <AppContent />
-    </AuthProvider>
+    <AppErrorBoundary>
+      <AuthProvider>
+        <AppContent />
+      </AuthProvider>
+    </AppErrorBoundary>
   );
 }

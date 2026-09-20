@@ -499,8 +499,8 @@ export const TEAM_MEMBERS: TeamMember[] = [
   {
     name: 'Nina Petrov',
     role: 'Data & Privacy Lead',
-    bio: 'GDPR specialist and data-protection officer. Nina owns the privacy framework that keeps every family\'s information safe and compliant at every tier.',
-    tags: ['GDPR', 'Compliance', 'Infosec'],
+    bio: 'Privacy and information-governance lead. Nina helps schools keep family information organised, access-controlled, and handled with care.',
+    tags: ['Privacy', 'Governance', 'Information safety'],
     initials: 'NP',
     bgClass: 'bg-[#e8dff0]',
     textClass: 'text-[#4e3070]',
