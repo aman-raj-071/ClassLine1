@@ -56,7 +56,7 @@ export const Header: React.FC<HeaderProps> = ({ onOpenLogin }) => {
               <span className="font-serif text-lg font-medium text-[#1a1410] leading-none tracking-tight block">
                 ClassLine
               </span>
-              <span className="text-[10px] uppercase font-bold tracking-widest text-[#6b5a48] block mt-0.5">
+              <span className="hidden sm:block text-[10px] uppercase font-bold tracking-widest text-[#6b5a48] mt-0.5">
                 Home & School Ledger
               </span>
             </div>
@@ -69,7 +69,7 @@ export const Header: React.FC<HeaderProps> = ({ onOpenLogin }) => {
         </div>
 
         {/* Center: Navigation Strip */}
-        <nav className="flex items-center p-0.5 sm:p-1 bg-[#e8e2d8] rounded-full shadow-inner" aria-label="Main Navigation">
+        <nav className="hidden md:flex items-center p-1 bg-[#e8e2d8] rounded-full shadow-inner" aria-label="Main Navigation">
           <button
             onClick={() => setActiveView('landing')}
             className={`px-3 sm:px-4 py-1.5 rounded-full text-xs font-semibold transition-all ${

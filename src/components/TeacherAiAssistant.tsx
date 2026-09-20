@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Bot, Check, Copy, Languages, LoaderCircle, Send, Sparkles } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { Pupil } from '../types';
+import { apiFetch } from '../lib/api';
 
 type AssistantTask = 'parent_message' | 'translate';
 type TranslationLanguage = 'Hindi' | 'English' | 'Kannada' | 'Tamil' | 'Marathi' | 'Bengali';
@@ -40,7 +41,7 @@ export const TeacherAiAssistant: React.FC<TeacherAiAssistantProps> = ({ pupils, 
       const payload = task === 'parent_message'
         ? { task, topic: topic.trim() || 'Class update', notes: notes.trim(), audience }
         : { task, text: notes.trim(), language };
-      const response = await fetch('/api/ai/teacher-assistant', {
+      const response = await apiFetch('/api/ai/teacher-assistant', {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
       });
       const data = await response.json().catch(() => null) as { draft?: string; provider?: 'bedrock' | 'gemini' | 'local'; error?: string } | null;

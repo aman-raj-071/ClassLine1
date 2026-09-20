@@ -371,6 +371,15 @@ const ROSTER_PARENT_CREDENTIALS: SchoolCredential[] = Array.from(parentPupilAssi
 
 export const SCHOOL_CREDENTIALS: SchoolCredential[] = [
   ...ROSTER_PARENT_CREDENTIALS,
+  // Public demonstration accounts only. Do not use these patterns for a live school.
+  {
+    username: 'demo.parent', password: 'DemoParent@2026', role: 'parent', name: 'Demo Parent',
+    email: 'demo.parent@classline.example', children: ['child-leo'],
+  },
+  {
+    username: 'demo.teacher', password: 'DemoTeacher@2026', role: 'teacher', name: 'Demo Teacher',
+    email: 'demo.teacher@classline.example', class: 'Class III A',
+  },
   {
     username: 'school.office', password: 'Office@2026!', role: 'teacher', name: 'School Office',
     email: 'office@saraswativm.edu.in', class: 'School Administration', isAuthorized: true,

@@ -271,7 +271,7 @@ export const ParentTimeline: React.FC = () => {
         </div>
 
         {/* Child Switcher Tabs */}
-        <div className="flex p-1 bg-[#e8e2d8] rounded-full shadow-inner" role="tablist" aria-label="Switch child">
+        <div className="flex w-full flex-col gap-1 rounded-2xl bg-[#e8e2d8] p-1 shadow-inner sm:w-auto sm:flex-row sm:rounded-full" role="tablist" aria-label="Switch child">
           {parentChildren.map((child) => {
             const isSelected = child.id === activeChild.id;
             return (
@@ -282,7 +282,7 @@ export const ParentTimeline: React.FC = () => {
                 role="tab"
                 aria-selected={isSelected}
                 onClick={() => setActiveChildId(child.id)}
-                className={`flex items-center gap-2 py-2 px-4 rounded-full text-xs font-semibold transition-all ${
+                className={`flex min-w-0 items-center gap-2 rounded-xl px-4 py-2 text-left text-xs font-semibold transition-all sm:rounded-full ${
                   isSelected
                     ? 'bg-[#fdfaf6] text-[#1a1410] shadow-sm'
                     : 'text-[#6b5a48] hover:text-[#1a1410]'
@@ -294,7 +294,7 @@ export const ParentTimeline: React.FC = () => {
                 >
                   {child.firstName[0]}
                 </div>
-                <span>{child.fullName}</span>
+                <span className="truncate">{child.fullName}</span>
                 <span className="hidden sm:inline text-[#6b5a48] font-normal">
                   ({child.year} &mdash; {child.class})
                 </span>

@@ -9,6 +9,7 @@ import {
 } from '../utils/gradeCalculations';
 import { getPupilsForClass, PUPIL_CHILD_IDS } from '../data/mockData';
 import { useAuth } from '../context/AuthContext';
+import { apiFetch } from '../lib/api';
 import { GradeCardView } from './GradeCardView';
 import { TeacherVerificationLookup } from './TeacherVerificationLookup';
 import {
@@ -302,7 +303,7 @@ export const GradeCardEditor: React.FC<GradeCardEditorProps> = ({
   const handleGenerateAiNarrative = async () => {
     setIsGeneratingNarrative(true);
     try {
-      const response = await fetch('/api/ai/grade-card-narrative', {
+      const response = await apiFetch('/api/ai/grade-card-narrative', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ pupilName: formCard.pupilName, cgpa: formCard.cgpa, overallGrade: formCard.overallGrade, resultStatus: formCard.resultStatus, subjects: formCard.subjects }),
       });

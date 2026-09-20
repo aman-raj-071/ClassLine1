@@ -207,7 +207,7 @@ export const TeacherDesk: React.FC = () => {
 
         {/* Primary tools stay at the top of the workspace for faster access. */}
         <nav className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[#d4cdc4] bg-[#f0ebe3] p-2" aria-label="Teacher workspace tools">
-          <div className="flex flex-wrap items-center gap-1 rounded-xl bg-[#e8e2d8] p-1 shadow-inner">
+          <div className="grid w-full grid-cols-2 gap-1 rounded-xl bg-[#e8e2d8] p-1 shadow-inner sm:flex sm:w-auto sm:flex-wrap sm:items-center">
             <button type="button" onClick={() => setTeacherActiveTab('dispatch')} className={`flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-bold ${teacherActiveTab === 'dispatch' ? 'bg-[#fdfaf6] text-[#1a1410] shadow-sm' : 'text-[#6b5a48]'}`}><Send className="w-4 h-4 text-[#8a6f5a]" />Daily Dispatch &amp; Log</button>
             <button type="button" onClick={() => setTeacherActiveTab('gradebook')} className={`flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-bold ${teacherActiveTab === 'gradebook' ? 'bg-[#fdfaf6] text-[#1a1410] shadow-sm' : 'text-[#6b5a48]'}`}><GraduationCap className="w-4 h-4 text-[#2a4a35]" />Gradebook <span className="rounded-full bg-[#d4e8da] px-1.5 py-0.5 text-[9px] text-[#1e3828]">Marks</span></button>
             <button type="button" onClick={() => setTeacherActiveTab('assistant')} className={`flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-bold ${teacherActiveTab === 'assistant' ? 'bg-[#fdfaf6] text-[#1a1410] shadow-sm' : 'text-[#6b5a48]'}`}><Sparkles className="w-4 h-4 text-[#7a4e10]" />AI Assist</button>

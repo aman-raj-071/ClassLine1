@@ -5,6 +5,11 @@ import { UserRole } from '../types';
 
 interface LoginModalProps { isOpen: boolean; onClose: () => void; defaultRole: UserRole; }
 
+const DEMO_ACCOUNTS = {
+  parent: { username: 'demo.parent', password: 'DemoParent@2026', label: 'Parent dashboard demo' },
+  teacher: { username: 'demo.teacher', password: 'DemoTeacher@2026', label: 'Teacher dashboard demo' },
+} as const;
+
 export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, defaultRole }) => {
   const { loginWithCredentials, requestPasswordReset, resetPassword } = useAuth();
   const [mode, setMode] = useState<'sign-in' | 'reset'>('sign-in');
@@ -86,6 +91,14 @@ export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, default
     setMode('sign-in'); setResetComplete(false); setResetLinkSent(false); setEmailHint(''); setError(null); setNewPassword(''); setConfirmPassword('');
   };
 
+  const useDemoAccount = (demoRole: 'parent' | 'teacher') => {
+    const demo = DEMO_ACCOUNTS[demoRole];
+    setRole(demoRole);
+    setUsername(demo.username);
+    setPassword(demo.password);
+    setError(null);
+  };
+
   return (
     <div role="dialog" aria-modal="true" aria-labelledby="modalTitle" className="fixed inset-0 z-[200] flex items-center justify-center bg-[#14100c]/80 p-4 backdrop-blur-sm animate-in fade-in duration-200" onClick={(event) => { if (event.target === event.currentTarget) onClose(); }}>
       <div className="relative w-full max-w-md overflow-hidden rounded-2xl border border-[#d4cdc4] bg-[#fdfaf6] shadow-2xl">
@@ -100,6 +113,21 @@ export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, default
             <button type="button" role="tab" aria-selected={role === 'parent'} onClick={() => { setRole('parent'); setError(null); }} className={`flex-1 rounded-full px-3 py-2 text-xs font-semibold transition-all ${role === 'parent' ? 'bg-[#fdfaf6] text-[#1a1410] shadow-sm' : 'text-[#6b5a48]'}`}>Parent Login</button>
             <button type="button" role="tab" aria-selected={role === 'teacher'} onClick={() => { setRole('teacher'); setError(null); }} className={`flex-1 rounded-full px-3 py-2 text-xs font-semibold transition-all ${role === 'teacher' ? 'bg-[#fdfaf6] text-[#1a1410] shadow-sm' : 'text-[#6b5a48]'}`}>Teacher Login</button>
           </div>
+          <section className="rounded-xl border border-[#b4d4be] bg-[#edf7ef] p-3" aria-label="Visitor demo accounts">
+            <p className="text-xs font-bold text-[#1e3828]">Try ClassLine with a demo account</p>
+            <p className="mt-1 text-[11px] leading-relaxed text-[#3e5a47]">Choose a dashboard below. These accounts contain demo data only.</p>
+            <div className="mt-3 grid gap-2 sm:grid-cols-2">
+              {(Object.keys(DEMO_ACCOUNTS) as Array<'parent' | 'teacher'>).map((demoRole) => {
+                const demo = DEMO_ACCOUNTS[demoRole];
+                return <div key={demoRole} className="rounded-lg border border-[#c6ddcb] bg-white/80 p-2.5">
+                  <p className="text-[11px] font-bold text-[#1e3828]">{demoRole === 'parent' ? 'Parent demo' : 'Teacher demo'}</p>
+                  <p className="mt-1 font-mono text-[10px] text-[#1a1410]">{demo.username}</p>
+                  <p className="font-mono text-[10px] text-[#1a1410]">{demo.password}</p>
+                  <button type="button" onClick={() => useDemoAccount(demoRole)} className="mt-2 w-full rounded-md border border-[#8eb89b] bg-[#fdfaf6] px-2 py-1.5 text-[10px] font-bold text-[#1e3828] transition-colors hover:bg-[#dff0e3]">Use {demoRole} demo</button>
+                </div>;
+              })}
+            </div>
+          </section>
           <div className="space-y-1.5">
             <label htmlFor="usernameInput" className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-[#5a4f45]"><UserRound className="h-3.5 w-3.5 text-[#8a6f5a]" /> Username</label>
             <input id="usernameInput" ref={usernameRef} type="text" value={username} onChange={(event) => { setUsername(event.target.value); setError(null); }} placeholder="Your school username" autoComplete="username" spellCheck="false" className="w-full rounded-xl border border-[#d4cdc4] bg-[#f7f3ed] px-4 py-3 text-sm text-[#1a1410] outline-none transition-all placeholder:text-[#b0a496] focus:border-[#8a6f5a] focus:bg-[#fdfaf6] focus:ring-2 focus:ring-[#8a6f5a]/20" />

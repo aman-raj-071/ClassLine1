@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Bot, Languages, LoaderCircle, Sparkles } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { apiFetch } from '../lib/api';
 
 type HelperTask = 'message' | 'translate';
 type TranslationLanguage = 'Hindi' | 'English' | 'Kannada' | 'Tamil' | 'Marathi' | 'Bengali';
@@ -30,7 +31,7 @@ export const ParentMessageHelper: React.FC<ParentMessageHelperProps> = ({ onUseD
     }
     setIsWorking(true);
     try {
-      const response = await fetch('/api/ai/parent-assistant', {
+      const response = await apiFetch('/api/ai/parent-assistant', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ task, text: text.trim(), language }),

@@ -18,7 +18,7 @@ export type TeacherDraftInput =
 
 export type AiDraft = {
   text: string;
-  provider: 'bedrock' | 'gemini' | 'local';
+  provider: 'bedrock' | 'gemini' | 'groq' | 'local';
 };
 
 const WEBSITE_FEATURE_INDEX = `
@@ -148,9 +148,33 @@ async function generateWithGemini(prompt: string, systemPrompt = SYSTEM_PROMPT):
   throw new Error(lastError);
 }
 
+/** Groq is called only by the API server; its key is never sent to browsers. */
+async function generateWithGroq(prompt: string, systemPrompt = SYSTEM_PROMPT): Promise<string> {
+  if (!env.GROQ_API_KEY) throw new Error('Groq API key is not configured.');
+  const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${env.GROQ_API_KEY}` },
+    body: JSON.stringify({
+      model: env.GROQ_MODEL_ID,
+      messages: [{ role: 'system', content: systemPrompt }, { role: 'user', content: prompt }],
+      temperature: 0.25,
+      max_completion_tokens: env.GROQ_MAX_OUTPUT_TOKENS,
+    }),
+  });
+  if (!response.ok) {
+    const error = await response.json().catch(() => null) as { error?: { message?: string } } | null;
+    throw new Error(error?.error?.message || `Groq request failed (${response.status}).`);
+  }
+  const data = await response.json() as { choices?: Array<{ message?: { content?: string } }> };
+  const text = data.choices?.[0]?.message?.content?.trim();
+  if (!text) throw new Error('Groq returned no usable text.');
+  return text;
+}
+
 export async function generateWebsiteAssistantReply(message: string, role?: 'parent' | 'teacher'): Promise<AiDraft> {
   const prompt = `${WEBSITE_FEATURE_INDEX}\n\nVisitor role: ${role || 'not signed in'}\nVisitor question: ${message}`;
   try {
+    if (env.AI_PROVIDER === 'groq') return { text: await generateWithGroq(prompt, WEBSITE_ASSISTANT_PROMPT), provider: 'groq' };
     return { text: await generateWithGemini(prompt, WEBSITE_ASSISTANT_PROMPT), provider: 'gemini' };
   } catch (error) {
     logger.warn('Website assistant request failed; using safe local response', {
@@ -180,6 +204,17 @@ export async function generateTeacherDraft(input: TeacherDraftInput): Promise<Ai
         action: 'ai.teacherAssistant',
         metadata: { modelId: env.BEDROCK_MODEL_ID, region: env.BEDROCK_REGION || env.AWS_REGION },
         error: error instanceof Error ? error.message : 'Unknown Bedrock error',
+      });
+    }
+  }
+
+  if (env.AI_PROVIDER === 'groq') {
+    try {
+      return { text: await generateWithGroq(prompt), provider: 'groq' };
+    } catch (error) {
+      logger.warn('Groq teacher assistant request failed; using local draft', {
+        action: 'ai.teacherAssistant', metadata: { modelId: env.GROQ_MODEL_ID },
+        error: error instanceof Error ? error.message : 'Unknown Groq error',
       });
     }
   }

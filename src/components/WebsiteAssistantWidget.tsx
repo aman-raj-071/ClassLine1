@@ -1,6 +1,7 @@
 import React, { FormEvent, useState } from 'react';
 import { Bot, FileText, LoaderCircle, Mail, MessageCircle, Send, X } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { apiFetch } from '../lib/api';
 import { GradeNote, getGradeNotes } from '../utils/gradeNotes';
 
 type ChatMessage = {
@@ -115,7 +116,7 @@ export const WebsiteAssistantWidget: React.FC = () => {
     setIsSending(true);
 
     try {
-      const response = await fetch(CHAT_API_URL, {
+      const response = await apiFetch(CHAT_API_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ message, role: currentUser?.role }),
