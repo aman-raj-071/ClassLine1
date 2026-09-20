@@ -14,6 +14,7 @@ export const apiFunction = defineFunction({
     TABLE_NAME: 'ClassLineTable',
     // Groq is called only by this Lambda. The secret is resolved at runtime
     // and is never bundled into the browser application or deployment files.
+    // This must match the secret configured for the Amplify backend environment.
     AI_PROVIDER: 'groq',
     GROQ_API_KEY: secret('GROQ_API_KEY'),
     GROQ_MODEL_ID: 'openai/gpt-oss-20b',

@@ -136,7 +136,7 @@ export const TeacherDesk: React.FC = () => {
     setIsPosting(true);
 
     setTimeout(() => {
-      addDispatch({
+      const wasDelivered = addDispatch({
         category,
         title: entryTitle.trim() || (category === 'note' ? 'Individual Progress Note' : 'Class Notice'),
         body: entryBody.trim(),
@@ -146,6 +146,8 @@ export const TeacherDesk: React.FC = () => {
       });
 
       setIsPosting(false);
+      if (!wasDelivered) return;
+
       setEntryTitle('');
       setEntryBody('');
       setShowPreview(false);
@@ -174,6 +176,7 @@ export const TeacherDesk: React.FC = () => {
 
   const prepareAttentionReminder = (reminderCategory: EntryType, title: string, body: string, recipientCount: number) => {
     setTeacherActiveTab('dispatch');
+    setIsComposerOpen(true);
     setCategory(reminderCategory);
     setEntryTitle(title);
     setEntryBody(body);

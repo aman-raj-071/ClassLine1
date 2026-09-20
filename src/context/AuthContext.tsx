@@ -53,7 +53,7 @@ interface AuthContextType {
   rejectSignOffItem: (id: string, reason?: string) => void;
   saveGradeCard: (gradeCard: GradeCard) => void;
   getGradeCardForChild: (childId: string) => GradeCard | undefined;
-  addDispatch: (dispatch: Omit<Dispatch, 'id' | 'sentAt' | 'delivered' | 'status'>) => void;
+  addDispatch: (dispatch: Omit<Dispatch, 'id' | 'sentAt' | 'delivered' | 'status'>) => boolean;
   recallDispatch: (id: string) => void;
   archiveDispatch: (id: string) => void;
   resendDispatch: (id: string) => void;
@@ -572,17 +572,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const addDispatch = (dispatchData: Omit<Dispatch, 'id' | 'sentAt' | 'delivered' | 'status'>) => {
-    const newDispatch: Dispatch = {
-      ...dispatchData,
-      id: `disp-${Date.now()}`,
-      sentAt: 'Just now',
-      delivered: dispatchData.recipients,
-      status: 'delivered',
-      acknowledgedCount: 0,
-    };
-
-    setDispatches((prev) => [newDispatch, ...prev]);
-
     // Route the entry only to its intended registered pupil(s), using the
     // explicit registration map rather than the displayed roster order.
     const selectedNames = new Set(dispatchData.selectedPupils || []);
@@ -607,12 +596,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     if (!newEntries.length) {
       showToast('No registered pupil was selected. Please select one or more pupils before posting.', 'error');
-      return;
+      return false;
     }
 
+    const newDispatch: Dispatch = {
+      ...dispatchData,
+      id: `disp-${timestamp}`,
+      sentAt: 'Just now',
+      delivered: newEntries.length,
+      status: 'delivered',
+      acknowledgedCount: 0,
+    };
+
+    setDispatches((prev) => [newDispatch, ...prev]);
     setTimelineEntries((prev) => [...newEntries, ...prev]);
     notify('parent', title, 'Your teacher has posted a new item to the school ledger.');
     showToast(`Ledger entry delivered to ${newEntries.length} parent timeline${newEntries.length === 1 ? '' : 's'}.`, 'success');
+    return true;
   };
 
   const recallDispatch = (id: string) => {

@@ -52,6 +52,17 @@ When deployed through Amplify, the API Lambda uses its IAM role automatically;
 no AWS secret is exposed to a browser. Production `/api/ai/*` routes require a
 teacher or administrator Cognito token.
 
+## Production Groq assistant
+
+The deployed API Lambda uses Groq and reads its key from the Amplify backend
+secret named `GROQ_API_KEY`; a local `.env` value is not deployed
+automatically. Before deploying, set that backend secret and then redeploy the
+backend. In Amplify Hosting, also set the branch environment variable
+`VITE_API_URL` to the `custom.apiUrl` value in the Amplify backend outputs, then
+redeploy the frontend. It must be the full API Gateway URL without a trailing
+slash. This lets the hosted browser call the API Lambda rather than the static
+site's non-existent `/api` route.
+
 ## Quality checks
 
 Run `npm run lint`, `npm test`, and `npm run build` before shipping changes.
