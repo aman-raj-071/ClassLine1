@@ -3,6 +3,7 @@ import { Bot, FileText, LoaderCircle, Mail, MessageCircle, Send, X } from 'lucid
 import { useAuth } from '../context/AuthContext';
 import { apiFetch } from '../lib/api';
 import { GradeNote, getGradeNotes } from '../utils/gradeNotes';
+import { websiteAssistantFallback } from '../utils/websiteAssistantFallback';
 
 type ChatMessage = {
   id: string;
@@ -128,7 +129,7 @@ export const WebsiteAssistantWidget: React.FC = () => {
       setMessages((previous) => [...previous, {
         id: `assistant-error-${Date.now()}`,
         role: 'assistant',
-        text: 'The website assistant is not running right now. Please try again later or contact the school office.',
+        text: websiteAssistantFallback(message),
       }]);
     } finally {
       setIsSending(false);
