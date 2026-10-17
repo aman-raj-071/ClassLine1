@@ -17,7 +17,7 @@ import {
   signOffItemInDb,
   signOffAllInDb,
 } from '../db/queries';
-import { ForbiddenError, NotFoundError } from '../utils/errors';
+import { BadRequestError, ForbiddenError, NotFoundError } from '../utils/errors';
 import { logger } from '../utils/logger';
 import { generateTeacherDraft } from '../services/ai/teacherAssistant';
 
@@ -109,17 +109,21 @@ teacherRouter.post('/entries', async (req: Request, res: Response, next: NextFun
     const teacherName = req.user!.name;
 
     const classInfo = await getTeacherClass(teacherId);
-    const classId = (classInfo?.PK as string)?.replace('CLASS#', '') || 'class-y3-oak';
+    if (!classInfo) throw new ForbiddenError('No class is assigned to this teacher. Contact the school office.');
+    const classId = (classInfo.PK as string).replace('CLASS#', '');
+    const classPupils = await getPupilsByClass(classId);
+    const allowedIds = new Set(classPupils.map((pupil) => pupil.id));
 
-    // Resolve target student IDs
+    // Resolve and authorize recipients against the server's class roster.
     let targetStudentIds: string[] = [];
 
     if (body.recipientScope === 'whole_class') {
-      const allPupils = await getPupilsByClass(classId);
-      targetStudentIds = allPupils.map((p) => p.id);
+      targetStudentIds = [...allowedIds];
     } else {
-      targetStudentIds = body.recipientIds;
+      targetStudentIds = [...new Set(body.recipientIds)];
+      if (targetStudentIds.some((id) => !allowedIds.has(id))) throw new ForbiddenError('Recipients must belong to your assigned class.');
     }
+    if (!targetStudentIds.length) throw new BadRequestError('There are no registered pupils to receive this announcement.');
 
     const entryId = `entry-${randomUUID().slice(0, 8)}`;
 

@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { Child, Dispatch, GradeCard, SignOffItem, TimelineEntry, UserRole, UserSession } from '../types';
+import { Child, Dispatch, GradeCard, Pupil, SignOffItem, TimelineEntry, UserRole, UserSession } from '../types';
+import { schoolApi, serverDispatch, serverTimeline, usesSchoolApi } from '../utils/schoolApi';
 import { CHILDREN, INITIAL_DISPATCHES, INITIAL_GRADE_CARDS, INITIAL_SIGNOFF_ITEMS, INITIAL_TIMELINE_ENTRIES, PUPIL_CHILD_IDS, PUPILS, SCHOOL_CREDENTIALS, SchoolCredential } from '../data/mockData';
 
 interface ToastState {
@@ -28,7 +29,7 @@ interface AuthContextType {
   gradeCards: GradeCard[];
   toast: ToastState | null;
   notifications: AppNotification[];
-  loginWithCredentials: (username: string, password: string, expectedRole: UserRole) => { success: boolean; error?: string };
+  loginWithCredentials: (username: string, password: string, expectedRole: UserRole) => Promise<{ success: boolean; error?: string }>;
   requestParentPasswordReset: (username: string) => { success: boolean; error?: string; emailHint?: string };
   resetParentPassword: (username: string, newPassword: string) => { success: boolean; error?: string };
   requestPasswordReset: (username: string, role: UserRole) => { success: boolean; error?: string; emailHint?: string };
@@ -53,7 +54,8 @@ interface AuthContextType {
   rejectSignOffItem: (id: string, reason?: string) => void;
   saveGradeCard: (gradeCard: GradeCard) => void;
   getGradeCardForChild: (childId: string) => GradeCard | undefined;
-  addDispatch: (dispatch: Omit<Dispatch, 'id' | 'sentAt' | 'delivered' | 'status'>) => boolean;
+  addDispatch: (dispatch: Omit<Dispatch, 'id' | 'sentAt' | 'delivered' | 'status'>) => Promise<boolean>;
+  schoolPupils: Pupil[];
   recallDispatch: (id: string) => void;
   archiveDispatch: (id: string) => void;
   resendDispatch: (id: string) => void;
@@ -72,6 +74,7 @@ const CREDENTIALS_STORAGE_KEY = 'classline_school_credentials';
 const NOTIFICATIONS_STORAGE_KEY = 'classline_notifications';
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const [schoolPupils, setSchoolPupils] = useState<Pupil[]>([]);
   const [currentUser, setCurrentUser] = useState<UserSession | null>(() => {
     try {
       const saved = sessionStorage.getItem(SESSION_STORAGE_KEY);
@@ -101,6 +104,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   });
 
   const [childrenList, setChildrenList] = useState<Child[]>(() => {
+    if (usesSchoolApi) return [];
     try {
       const saved = localStorage.getItem(CHILDREN_STORAGE_KEY);
       const stored: Child[] = saved ? JSON.parse(saved) : [];
@@ -117,6 +121,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   });
 
   const [timelineEntries, setTimelineEntries] = useState<TimelineEntry[]>(() => {
+    if (usesSchoolApi) return [];
     try {
       const saved = localStorage.getItem(TIMELINE_STORAGE_KEY);
       const stored: TimelineEntry[] = saved ? JSON.parse(saved) : INITIAL_TIMELINE_ENTRIES;
@@ -127,6 +132,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   });
 
   const [dispatches, setDispatches] = useState<Dispatch[]>(() => {
+    if (usesSchoolApi) return [];
     try {
       const saved = localStorage.getItem(DISPATCHES_STORAGE_KEY);
       const stored: Dispatch[] = saved ? JSON.parse(saved) : INITIAL_DISPATCHES;
@@ -281,39 +287,78 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     ));
   };
 
-  const loginWithCredentials = (rawUsername: string, password: string, expectedRole: UserRole): { success: boolean; error?: string } => {
-    const username = rawUsername.trim().toLowerCase();
-    if (!username || !password) {
-      return { success: false, error: 'Enter the username and password issued by your school.' };
-    }
-
-    const found = credentials.find(
-      (item) => item.username.toLowerCase() === username && item.password === password
-    );
-    if (!found) {
-      return { success: false, error: 'Those school credentials were not recognised. Please contact your teacher or school office.' };
-    }
-    if (found.role !== expectedRole) {
-      return { success: false, error: `These are ${found.role} credentials. Please use the ${found.role === 'teacher' ? 'Teacher' : 'Parent'} Login.` };
-    }
-
-    const sessionData: UserSession = {
-      username: found.username,
-      role: found.role,
-      name: found.name,
-      email: found.email,
-      children: found.children,
-      class: found.class,
-      isAuthorized: found.isAuthorized,
-      loginTime: Date.now(),
+  useEffect(() => {
+    if (!usesSchoolApi || !currentUser) return;
+    let cancelled = false;
+    let pending = false;
+    let reportedError = false;
+    const refresh = async () => {
+      if (pending) return;
+      pending = true;
+      try {
+        if (currentUser.role === 'parent') {
+          const data = await schoolApi<{ children: Child[] }>('/parent/children');
+          const timelines = await Promise.all(data.children.map(async (child) => {
+            const result = await schoolApi<{ entries: TimelineEntry[] }>(`/parent/timeline?childId=${encodeURIComponent(child.id)}`);
+            return result.entries.map(serverTimeline);
+          }));
+          if (cancelled) return;
+          setChildrenList(data.children);
+          setActiveChildId((id) => data.children.some((child) => child.id === id) ? id : data.children[0]?.id || '');
+          setTimelineEntries(timelines.flat());
+        } else {
+          const [roster, sent] = await Promise.all([
+            schoolApi<{ pupils: Pupil[] }>('/teacher/pupils'),
+            schoolApi<{ dispatches: Parameters<typeof serverDispatch>[0][] }>('/teacher/entries'),
+          ]);
+          if (cancelled) return;
+          setSchoolPupils(roster.pupils);
+          setDispatches(sent.dispatches.filter((entry) => !['RECALLED', 'ARCHIVED'].includes(entry.status)).map(serverDispatch));
+        }
+        reportedError = false;
+      } catch (error) {
+        if (!cancelled && !reportedError) {
+          showToast(error instanceof Error ? error.message : 'Unable to refresh school announcements.', 'error');
+          reportedError = true;
+        }
+      } finally { pending = false; }
     };
-
-    setCurrentUser(sessionData);
-    setActiveView(found.role === 'teacher' ? 'teacher' : 'parent');
-    showToast(`Welcome back, ${found.name.split(' ')[0]}!`, 'success');
-    return { success: true };
+    // Shared records replace the previous browser's cached demonstration data.
+    setTimelineEntries([]); setDispatches([]); setSchoolPupils([]);
+    if (currentUser.role === 'parent') setChildrenList([]);
+    void refresh();
+    const timer = window.setInterval(refresh, 10000);
+    window.addEventListener('focus', refresh);
+    return () => { cancelled = true; clearInterval(timer); window.removeEventListener('focus', refresh); };
+  }, [currentUser?.username, currentUser?.role]);
+  const loginWithCredentials = async (rawUsername: string, password: string, expectedRole: UserRole): Promise<{ success: boolean; error?: string }> => {
+    const username = rawUsername.trim();
+    if (!username || !password) return { success: false, error: 'Enter the username and password issued by your school.' };
+    if (import.meta.env.DEV && !import.meta.env.VITE_API_URL) {
+      const account = credentials.find((entry) => entry.username.toLowerCase() === username.toLowerCase() && entry.password === password);
+      if (!account) return { success: false, error: 'Username or password is incorrect. Contact the school office for your credentials.' };
+      if (account.role !== expectedRole) return { success: false, error: `Please use the ${account.role === 'teacher' ? 'Teacher' : 'Parent'} Login for this account.` };
+      const { password: _password, ...profile } = account;
+      setCurrentUser({ ...profile, loginTime: Date.now() });
+      sessionStorage.removeItem('classline_cognito_id_token');
+      setActiveView(account.role === 'teacher' ? 'teacher' : 'parent');
+      if (account.children?.length) setActiveChildId(account.children[0]);
+      showToast(`Welcome back, ${account.name.split(' ')[0]}!`, 'success');
+      return { success: true };
+    }
+    try {
+      const base = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '');
+      const response = await fetch(`${base}/api/auth/login`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username, password }) });
+      const data = await response.json();
+      if (!response.ok) return { success: false, error: data.error || 'Those credentials were not recognised.' };
+      if (data.user.role !== expectedRole) return { success: false, error: `These are ${data.user.role} credentials. Please use the ${data.user.role === 'teacher' ? 'Teacher' : 'Parent'} Login.` };
+      const sessionData: UserSession = { username: data.user.username || username, role: data.user.role, name: data.user.name || username, email: data.user.email || '', children: data.user.children || [], class: data.user.class, isAuthorized: data.user.isAuthorized, loginTime: Date.now() };
+      sessionStorage.setItem('classline_cognito_id_token', data.token);
+      setCurrentUser(sessionData); setActiveView(sessionData.role === 'teacher' ? 'teacher' : 'parent');
+      showToast(`Welcome back, ${sessionData.name.split(' ')[0]}!`, 'success');
+      return { success: true };
+    } catch { return { success: false, error: 'Unable to reach the sign-in service. Please try again.' }; }
   };
-
   const findParentAccount = (rawUsername: string) => {
     const username = rawUsername.trim().toLowerCase();
     return credentials.find((credential) => credential.role === 'parent' && credential.username.toLowerCase() === username);
@@ -403,6 +448,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const logout = () => {
+    sessionStorage.removeItem('classline_cognito_id_token');
     setCurrentUser(null);
     setActiveView('landing');
     setFocusMode(false);
@@ -571,7 +617,26 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     showToast(`Returned ${item.pupilName}'s submission to parent for verification.`, 'info');
   };
 
-  const addDispatch = (dispatchData: Omit<Dispatch, 'id' | 'sentAt' | 'delivered' | 'status'>) => {
+  const addDispatch = async (dispatchData: Omit<Dispatch, 'id' | 'sentAt' | 'delivered' | 'status'>) => {
+    if (usesSchoolApi) {
+      try {
+        const selected = new Set(dispatchData.selectedPupils || []);
+        const roster = await schoolApi<{ pupils: Pupil[] }>('/teacher/pupils');
+        const recipients = roster.pupils.filter((pupil) => dispatchData.targetScope === 'class' || selected.has(pupil.name));
+        if (!recipients.length || (dispatchData.targetScope !== 'class' && recipients.length !== selected.size)) throw new Error('Select registered pupils from your school class before posting.');
+        const result = await schoolApi<{ entry: { entryId: string }; recipientsCount: number }>('/teacher/entries', { method: 'POST', body: JSON.stringify({
+          category: dispatchData.category, title: dispatchData.title, body: dispatchData.body,
+          recipientScope: dispatchData.targetScope === 'class' ? 'whole_class' : dispatchData.targetScope,
+          recipientIds: recipients.map((pupil) => pupil.id),
+        }) });
+        setDispatches((previous) => [{ ...dispatchData, id: result.entry.entryId, recipients: result.recipientsCount, delivered: result.recipientsCount, sentAt: new Date().toISOString(), status: 'delivered' }, ...previous]);
+        showToast('Announcement saved to the school server. Parent dashboards refresh automatically.', 'success');
+        return true;
+      } catch (error) {
+        showToast(error instanceof Error ? error.message : 'Announcement was not sent. Please try again.', 'error');
+        return false;
+      }
+    }
     // Route the entry only to its intended registered pupil(s), using the
     // explicit registration map rather than the displayed roster order.
     const selectedNames = new Set(dispatchData.selectedPupils || []);
@@ -615,17 +680,29 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return true;
   };
 
-  const recallDispatch = (id: string) => {
+  const recallDispatch = async (id: string) => {
+    if (usesSchoolApi) {
+      try { await schoolApi(`/teacher/entries/${encodeURIComponent(id)}/recall`, { method: 'POST' }); }
+      catch (error) { showToast(error instanceof Error ? error.message : 'Unable to recall announcement.', 'error'); return; }
+    }
     setDispatches((prev) => prev.filter((d) => d.id !== id));
     showToast('Dispatch recalled and removed from parent timelines.', 'info');
   };
 
-  const archiveDispatch = (id: string) => {
+  const archiveDispatch = async (id: string) => {
+    if (usesSchoolApi) {
+      try { await schoolApi(`/teacher/entries/${encodeURIComponent(id)}/archive`, { method: 'POST' }); }
+      catch (error) { showToast(error instanceof Error ? error.message : 'Unable to archive announcement.', 'error'); return; }
+    }
     setDispatches((prev) => prev.filter((d) => d.id !== id));
     showToast('Entry archived to school audit records.', 'info');
   };
 
-  const resendDispatch = (id: string) => {
+  const resendDispatch = async (id: string) => {
+    if (usesSchoolApi) {
+      try { await schoolApi(`/teacher/entries/${encodeURIComponent(id)}/resend`, { method: 'POST' }); }
+      catch (error) { showToast(error instanceof Error ? error.message : 'Unable to resend announcement.', 'error'); return; }
+    }
     showToast('Prompt reminder re-sent to pending families.', 'success');
   };
 
@@ -689,6 +766,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         saveGradeCard,
         getGradeCardForChild,
         addDispatch,
+        schoolPupils,
         recallDispatch,
         archiveDispatch,
         resendDispatch,

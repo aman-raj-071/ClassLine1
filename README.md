@@ -54,6 +54,13 @@ teacher or administrator Cognito token.
 
 ## Production Groq assistant
 
+The Amplify build reads `custom.apiUrl` from `amplify_outputs.json` automatically.
+An explicit Hosting `VITE_API_URL` overrides that value. AI Assist sends the
+signed-in Cognito ID token; production requires a teacher or administrator role.
+After deployment, sign out and sign in again if the browser has an old session.
+Translation requires a working AI provider and reports an error rather than
+presenting the original text as a translation when the provider is unavailable.
+
 The deployed API Lambda uses Groq and reads its key from the Amplify backend
 secret named `GROQ_API_KEY`; a local `.env` value is not deployed
 automatically. Before deploying, set that backend secret and then redeploy the
@@ -62,6 +69,24 @@ backend. In Amplify Hosting, also set the branch environment variable
 redeploy the frontend. It must be the full API Gateway URL without a trailing
 slash. This lets the hosted browser call the API Lambda rather than the static
 site's non-existent `/api` route.
+
+## Shared announcements on the deployed site
+
+Production dashboards publish and load announcements through the authenticated
+API and DynamoDB. Parent dashboards refresh every 10 seconds and on window focus.
+Set Amplify Hosting's `VITE_API_URL` to the backend's `custom.apiUrl` and redeploy
+the frontend after changing it. Deploy the backend changes as well.
+
+The school's database must link the teacher's Cognito user ID to an assigned
+class, and the parent's Cognito user ID to the pupil records in that class.
+An empty parent dashboard or a missing-class error requires those registrations
+to be completed in the backend. Browser-only sample accounts and registrations
+do not create Cognito or DynamoDB records. Local demo mode remains browser-only.
+
+Verify using two independent browser sessions: sign in as a teacher and a linked
+parent, publish a whole-class notice, and check that it appears within 10 seconds.
+Also verify that an individual notice appears only for its selected pupil and
+that a failed publish keeps the teacher's draft.
 
 ## Quality checks
 

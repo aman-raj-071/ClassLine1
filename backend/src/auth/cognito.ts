@@ -4,6 +4,8 @@ import {
   RespondToAuthChallengeCommand,
   AdminCreateUserCommand,
   AdminSetUserPasswordCommand,
+  ForgotPasswordCommand,
+  ConfirmForgotPasswordCommand,
 } from '@aws-sdk/client-cognito-identity-provider';
 import { env } from '../config/env';
 import { logger } from '../utils/logger';
@@ -12,6 +14,34 @@ export const cognitoClient = new CognitoIdentityProviderClient({
   region: env.AWS_REGION,
   maxAttempts: 3,
 });
+
+export async function loginWithCognitoPassword(username: string, password: string) {
+  const response = await cognitoClient.send(new InitiateAuthCommand({
+    AuthFlow: 'USER_PASSWORD_AUTH',
+    ClientId: env.COGNITO_CLIENT_ID,
+    AuthParameters: { USERNAME: username.trim(), PASSWORD: password },
+  }));
+  if (!response.AuthenticationResult?.IdToken) {
+    throw new Error('Cognito did not return an ID token');
+  }
+  return response.AuthenticationResult;
+}
+
+export async function requestCognitoPasswordReset(username: string) {
+  return cognitoClient.send(new ForgotPasswordCommand({
+    ClientId: env.COGNITO_CLIENT_ID,
+    Username: username.trim(),
+  }));
+}
+
+export async function confirmCognitoPasswordReset(username: string, code: string, password: string) {
+  return cognitoClient.send(new ConfirmForgotPasswordCommand({
+    ClientId: env.COGNITO_CLIENT_ID,
+    Username: username.trim(),
+    ConfirmationCode: code.trim(),
+    Password: password,
+  }));
+}
 
 export async function loginWithCognitoCustomAuth(accessCode: string) {
   const cleanCode = accessCode.toUpperCase().trim();

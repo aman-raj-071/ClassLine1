@@ -10,8 +10,8 @@ export const apiFunction = defineFunction({
     // Keep the Lambda response readable by the hosted production site.
     // Update this if the Amplify branch domain changes.
     CORS_ORIGIN: 'https://main.d2klr7t3k90s53.amplifyapp.com',
-    AWS_REGION: 'eu-west-2',
     TABLE_NAME: 'ClassLineTable',
+    COGNITO_AUTH_MODE: 'password',
     // Groq is called only by this Lambda. The secret is resolved at runtime
     // and is never bundled into the browser application or deployment files.
     // This must match the secret configured for the Amplify backend environment.

@@ -9,7 +9,7 @@ export const Toast: React.FC = () => {
     if (!toast) return;
     const timer = setTimeout(() => {
       hideToast();
-    }, 3500);
+    }, toast.type === 'error' ? 9000 : 5000);
     return () => clearTimeout(timer);
   }, [toast, hideToast]);
 
@@ -17,9 +17,9 @@ export const Toast: React.FC = () => {
 
   return (
     <div
-      role="status"
-      aria-live="polite"
-      className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[300] flex items-center gap-3 px-5 py-3 rounded-full shadow-xl text-sm font-medium transition-all duration-300 animate-in fade-in slide-in-from-bottom-5 border backdrop-blur-sm"
+      role={toast.type === 'error' ? 'alert' : 'status'}
+      aria-live={toast.type === 'error' ? 'assertive' : 'polite'}
+      className="fixed bottom-6 left-1/2 w-[calc(100%-2rem)] max-w-lg -translate-x-1/2 z-[300] flex items-center gap-3 px-5 py-3 rounded-2xl shadow-xl text-sm leading-6 font-medium transition-all duration-300 animate-in fade-in slide-in-from-bottom-5 border backdrop-blur-sm"
       style={{
         backgroundColor:
           toast.type === 'success'

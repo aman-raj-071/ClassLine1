@@ -423,7 +423,7 @@ export async function getTeacherClass(teacherId: string) {
   }
 
   const found = res.Items.find((c) => c.teacherId === teacherId);
-  return found || res.Items[0]; // fallback to first class if not found
+  return found || null;
 }
 
 export async function getPupilsByClass(classId: string, search?: string) {

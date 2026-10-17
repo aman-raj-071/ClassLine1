@@ -13,7 +13,7 @@ import {
   CorsHttpMethod,
 } from 'aws-cdk-lib/aws-apigatewayv2';
 import { HttpLambdaIntegration } from 'aws-cdk-lib/aws-apigatewayv2-integrations';
-import { Stack, aws_iam } from 'aws-cdk-lib';
+import { Duration, aws_iam } from 'aws-cdk-lib';
 
 /**
  * ClassLine Backend Definition (Amplify Gen 2)
@@ -68,7 +68,18 @@ classLineTable.addGlobalSecondaryIndex({
 
 // 2. Permissions: Grant Lambda full read/write access to ClassLineTable
 const lambdaFunction = backend.apiFunction.resources.lambda;
+lambdaFunction.addEnvironment('COGNITO_USER_POOL_ID', backend.auth.resources.userPool.userPoolId);
+lambdaFunction.addEnvironment('COGNITO_CLIENT_ID', backend.auth.resources.userPoolClient.userPoolClientId);
 classLineTable.grantReadWriteData(lambdaFunction);
+
+// Allow the API to authenticate users and perform self-service password resets.
+lambdaFunction.addToRolePolicy(new aws_iam.PolicyStatement({
+  effect: aws_iam.Effect.ALLOW,
+  actions: ['cognito-idp:InitiateAuth', 'cognito-idp:ForgotPassword', 'cognito-idp:ConfirmForgotPassword'],
+  resources: [backend.auth.resources.userPool.userPoolArn],
+}));
+
+
 
 // The Lambda receives only model-invocation permission. It does not receive
 // AWS credentials in browser code, and cannot create or manage Bedrock models.
@@ -103,7 +114,7 @@ const httpApi = new HttpApi(customResourcesStack, 'ClassLineHttpApi', {
       CorsHttpMethod.OPTIONS,
     ],
     allowOrigins: ['*'],
-    maxAge: Stack.of(customResourcesStack).parseDuration('86400s'),
+    maxAge: Duration.days(1),
   },
 });
 
@@ -130,5 +141,7 @@ backend.addOutput({
     apiUrl: httpApi.url,
     tableName: classLineTable.tableName,
     region: 'eu-west-2',
+    userPoolId: backend.auth.resources.userPool.userPoolId,
+    userPoolClientId: backend.auth.resources.userPoolClient.userPoolClientId,
   },
 });

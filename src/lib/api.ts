@@ -13,5 +13,8 @@ export function apiUrl(path: string) {
 }
 
 export function apiFetch(path: string, init?: RequestInit) {
-  return fetch(apiUrl(path), init);
+  const headers = new Headers(init?.headers);
+  const token = sessionStorage.getItem('classline_cognito_id_token');
+  if (token && !headers.has('Authorization')) headers.set('Authorization', `Bearer ${token}`);
+  return fetch(apiUrl(path), { ...init, headers });
 }

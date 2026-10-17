@@ -21,12 +21,11 @@ export const Header: React.FC<HeaderProps> = ({ onOpenLogin }) => {
   const roleNotifications = currentUser ? notifications.filter((notification) => notification.recipientRole === currentUser.role) : [];
   const unreadNotificationCount = roleNotifications.filter((notification) => !notification.read).length;
 
-  // Notifications remain available from the bell, but the panel should never
-  // obstruct the workspace after it has been opened.
   useEffect(() => {
     if (!showNotifications) return;
-    const timer = window.setTimeout(() => setShowNotifications(false), 5000);
-    return () => window.clearTimeout(timer);
+    const dismiss = (event: KeyboardEvent) => { if (event.key === 'Escape') setShowNotifications(false); };
+    window.addEventListener('keydown', dismiss);
+    return () => window.removeEventListener('keydown', dismiss);
   }, [showNotifications]);
 
   useEffect(() => setShowNotifications(false), [activeView, currentUser?.username]);
@@ -164,7 +163,8 @@ export const Header: React.FC<HeaderProps> = ({ onOpenLogin }) => {
               {unreadNotificationCount > 0 && <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-[#9b2c2c] px-1 text-[9px] font-bold text-white ring-2 ring-[#fcf9f4]">{unreadNotificationCount > 9 ? '9+' : unreadNotificationCount}</span>}
             </button>
             {showNotifications && currentUser && (
-              <div className="absolute right-0 top-10 z-50 w-80 overflow-hidden rounded-xl border border-[#d4cdc4] bg-[#fdfaf6] shadow-xl">
+              <div className="absolute right-0 top-10 z-50 w-[min(20rem,calc(100vw-2rem))] overflow-hidden rounded-xl border border-[#d4cdc4] bg-[#fdfaf6] shadow-xl">
+                <button type="button" onClick={() => setShowNotifications(false)} className="absolute right-3 top-3 rounded-lg px-2 py-1 text-xs text-[#52654a] hover:bg-[#edf1e6]" aria-label="Close notifications">Close</button>
                 <div className="border-b border-[#e8e2d8] px-4 py-3"><p className="font-serif text-base text-[#1a1410]">Notifications</p><p className="mt-0.5 text-[11px] text-[#6b5a48]">{currentUser.role === 'teacher' ? 'Parent activity and replies' : 'Updates from your teacher'}</p></div>
                 <div className="max-h-80 overflow-y-auto">
                   {roleNotifications.length ? roleNotifications.map((notification) => <article key={notification.id} className="border-b border-[#e8e2d8] px-4 py-3 last:border-b-0"><p className="text-xs font-bold text-[#1a1410]">{notification.title}</p><p className="mt-1 text-[11px] leading-relaxed text-[#5a4f45]">{notification.body}</p><p className="mt-1.5 text-[10px] font-semibold text-[#8a6f5a]">{notification.createdAt}</p></article>) : <p className="px-4 py-6 text-center text-xs text-[#6b5a48]">No notifications yet.</p>}
@@ -210,7 +210,7 @@ export const Header: React.FC<HeaderProps> = ({ onOpenLogin }) => {
             </>
           ) : (
             <button
-              onClick={onOpenLogin}
+              onClick={() => onOpenLogin('parent')}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold bg-[#1a1410] text-[#f7f3ed] hover:bg-[#2e2620] shadow-sm transition-all"
             >
               <LogIn className="w-3.5 h-3.5" />
@@ -219,6 +219,11 @@ export const Header: React.FC<HeaderProps> = ({ onOpenLogin }) => {
           )}
         </div>
       </div>
+      <nav aria-label="Mobile navigation" className="flex border-t border-[#dedfd4] bg-[#f8f8f0] px-3 py-1.5 md:hidden">
+        <button type="button" aria-current={activeView === 'landing' ? 'page' : undefined} onClick={() => setActiveView('landing')} className={`flex-1 rounded-lg px-3 py-2 text-xs font-semibold ${activeView === 'landing' ? 'bg-[#e3ebdb] text-[#304d37]' : 'text-[#6b705f]'}`}>Overview</button>
+        {(!currentUser || currentUser.role === 'parent') && <button type="button" aria-current={activeView === 'parent' ? 'page' : undefined} onClick={() => currentUser ? setActiveView('parent') : onOpenLogin('parent')} className={`flex-1 rounded-lg px-3 py-2 text-xs font-semibold ${activeView === 'parent' ? 'bg-[#e3ebdb] text-[#304d37]' : 'text-[#6b705f]'}`}>Parent timeline</button>}
+        {(!currentUser || currentUser.role === 'teacher') && <button type="button" aria-current={activeView === 'teacher' ? 'page' : undefined} onClick={() => currentUser ? setActiveView('teacher') : onOpenLogin('teacher')} className={`flex-1 rounded-lg px-3 py-2 text-xs font-semibold ${activeView === 'teacher' ? 'bg-[#e3ebdb] text-[#304d37]' : 'text-[#6b705f]'}`}>Teacher desk</button>}
+      </nav>
     </header>
   );
 };

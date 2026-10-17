@@ -54,13 +54,13 @@ export async function authenticate(req: Request, res: Response, next: NextFuncti
 
   // Development/Test mock token bypass:
   // Allows testing and local preview without live Cognito endpoints
-  if (token.startsWith('mock-jwt-') || process.env.NODE_ENV === 'test') {
+  if ((env.NODE_ENV !== 'production' && token.startsWith('mock-jwt-')) || process.env.NODE_ENV === 'test') {
     try {
       // Decode mock payload if formatted as mock-jwt-<role>-<id> or JSON base64
       if (token.startsWith('mock-jwt-')) {
         const parts = token.split('-');
         const role = (parts[2] as 'parent' | 'teacher' | 'admin') || 'parent';
-        const id = parts[3] || 'mock-user-id';
+        const id = parts.slice(3).join('-') || 'mock-user-id';
         req.user = {
           id,
           name: role === 'teacher' ? 'Mrs. Eleanor Reynolds' : 'Eleanor Vance',

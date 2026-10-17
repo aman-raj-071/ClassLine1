@@ -41,11 +41,12 @@ const AppContent: React.FC = () => {
 
   return (
     <div className="min-h-screen flex flex-col bg-[#f7f3ed] text-[#1a1410]">
+      <a href="#main-content" className="skip-link">Skip to main content</a>
       {/* Top Header */}
       <Header onOpenLogin={handleOpenLogin} />
 
       {/* Main View Area */}
-      <main className="flex-1">
+      <main id="main-content" tabIndex={-1} className="flex-1 outline-none">
         {activeView === 'landing' && (
           <div className="animate-in fade-in duration-300">
             <LandingHero onOpenLogin={showAccessCodeRoleChoices} />
@@ -79,7 +80,7 @@ const AppContent: React.FC = () => {
       <Toast />
 
       {/* Website-grounded help bot; not used for private parent-teacher chat. */}
-      <WebsiteAssistantWidget />
+      {activeView === 'landing' && <WebsiteAssistantWidget />}
     </div>
   );
 };

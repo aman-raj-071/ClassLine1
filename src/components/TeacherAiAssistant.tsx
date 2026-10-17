@@ -15,7 +15,7 @@ function createOfflineDraft(task: AssistantTask, topic: string, notes: string, a
 
 type TeacherAiAssistantProps = {
   pupils: Pupil[];
-  onSendDraft: (draft: string, topic: string, audience: 'whole_class' | 'individual', pupilName?: string) => void;
+  onSendDraft: (draft: string, topic: string, audience: 'whole_class' | 'individual', pupilName?: string) => Promise<boolean>;
 };
 
 export const TeacherAiAssistant: React.FC<TeacherAiAssistantProps> = ({ pupils, onSendDraft }) => {
@@ -27,7 +27,7 @@ export const TeacherAiAssistant: React.FC<TeacherAiAssistantProps> = ({ pupils, 
   const [language, setLanguage] = useState<TranslationLanguage>('Hindi');
   const [draft, setDraft] = useState('');
   const [isWorking, setIsWorking] = useState(false);
-  const [usedProvider, setUsedProvider] = useState<'bedrock' | 'gemini' | 'local' | null>(null);
+  const [usedProvider, setUsedProvider] = useState<'bedrock' | 'gemini' | 'groq' | 'local' | null>(null);
   const [copied, setCopied] = useState(false);
   const [selectedPupilName, setSelectedPupilName] = useState('');
 
@@ -44,19 +44,28 @@ export const TeacherAiAssistant: React.FC<TeacherAiAssistantProps> = ({ pupils, 
       const response = await apiFetch('/api/ai/teacher-assistant', {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
       });
-      const data = await response.json().catch(() => null) as { draft?: string; provider?: 'bedrock' | 'gemini' | 'local'; error?: string } | null;
+      const data = await response.json().catch(() => null) as { draft?: string; provider?: 'bedrock' | 'gemini' | 'groq' | 'local'; error?: string } | null;
+      if (response.status === 401) throw new Error('Your school session has expired. Sign out and sign in again to use AI Assist.');
+      if (response.status === 403) throw new Error('AI Assist requires a teacher account. Contact the school office to check your account role.');
       if (!response.ok || !data?.draft) throw new Error(data?.error || 'AI assistant is unavailable.');
+      if (task === 'translate' && data.provider === 'local') throw new Error('Translation is unavailable. Ask the school administrator to check the deployed AI provider and API key.');
       setDraft(data.draft);
       setCopied(false);
       setUsedProvider(data.provider || null);
       showToast(data.provider === 'local' ? 'A local draft is ready. Connect an AI provider to translate or improve the wording.' : 'AI draft is ready for your review.', 'success');
     } catch (error) {
+      const message = error instanceof Error ? error.message : 'AI assistant is unavailable.';
+      if (task === 'translate') {
+        setDraft(''); setUsedProvider(null); setCopied(false);
+        showToast(message, 'error');
+        return;
+      }
       // Messaging must remain usable even when the local API process or AWS
       // service is offline. The draft is deliberately plain and editable.
       setDraft(createOfflineDraft(task, topic, notes, audience));
       setCopied(false);
       setUsedProvider('local');
-      showToast('The AI connection is offline, so an editable local draft was prepared.', 'info');
+      showToast(`${message} A basic template was prepared for manual editing.`, 'error');
     } finally {
       setIsWorking(false);
     }
@@ -86,7 +95,7 @@ export const TeacherAiAssistant: React.FC<TeacherAiAssistantProps> = ({ pupils, 
     window.setTimeout(() => setCopied(false), 2000);
   };
 
-  const sendDraft = () => {
+  const sendDraft = async () => {
     if (!draft.trim()) return;
     if (task !== 'parent_message') {
       showToast('Switch to Draft family message before sending a translated draft.', 'info');
@@ -96,7 +105,12 @@ export const TeacherAiAssistant: React.FC<TeacherAiAssistantProps> = ({ pupils, 
       showToast('Choose the pupil whose family should receive this draft.', 'error');
       return;
     }
-    onSendDraft(draft.trim(), topic.trim() || 'Class update', audience, selectedPupilName || undefined);
+    if (isWorking) return;
+    setIsWorking(true);
+    let sent = false;
+    try { sent = await onSendDraft(draft.trim(), topic.trim() || 'Class update', audience, selectedPupilName || undefined); }
+    finally { setIsWorking(false); }
+    if (!sent) return;
     setDraft('');
     setCopied(false);
   };

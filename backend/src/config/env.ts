@@ -7,6 +7,7 @@ const EnvSchema = z.object({
   TABLE_NAME: z.string().default('ClassLineTable'),
   COGNITO_USER_POOL_ID: z.string().default('eu-west-2_mockUserPoolId'),
   COGNITO_CLIENT_ID: z.string().default('mockAppClientId1234567890'),
+  COGNITO_AUTH_MODE: z.enum(['password', 'custom']).default('password'),
   DYNAMODB_ENDPOINT: z.string().optional(),
   CORS_ORIGIN: z.string().default('http://localhost:3000'),
   RATE_LIMIT_MAX_ATTEMPTS: z.coerce.number().default(5),

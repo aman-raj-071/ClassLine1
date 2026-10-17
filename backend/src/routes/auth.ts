@@ -1,92 +1,76 @@
 import { Router, Request, Response, NextFunction } from 'express';
-import { LoginSchema } from '../validation/schemas';
-import { getUserByAccessCode } from '../db/queries';
-import { loginWithCognitoCustomAuth } from '../auth/cognito';
+import { z } from 'zod';
+import { CognitoIdentityProviderServiceException } from '@aws-sdk/client-cognito-identity-provider';
+import { loginWithCognitoPassword, requestCognitoPasswordReset, confirmCognitoPasswordReset } from '../auth/cognito';
 import { authenticate, loginRateLimiter } from '../auth/middleware';
-import { UnauthorizedError } from '../utils/errors';
+import { UnauthorizedError, BadRequestError } from '../utils/errors';
 import { logger } from '../utils/logger';
 
 export const authRouter = Router();
+const LoginSchema = z.object({ username: z.string().trim().min(1).max(128), password: z.string().min(1).max(256), });
 
-authRouter.post(
-  '/login',
-  loginRateLimiter,
-  async (req: Request, res: Response, next: NextFunction) => {
-    try {
-      const { code } = LoginSchema.parse(req.body);
+function getCognitoMessage(error: unknown) {
+  const name = (error as { name?: string })?.name;
+  if (name === 'NotAuthorizedException' || name === 'UserNotFoundException') return 'Username or password is incorrect.';
+  if (name === 'PasswordResetRequiredException') return 'Password reset is required. Use Forgot password to continue.';
+  if (name === 'UserNotConfirmedException') return 'This account is not confirmed. Contact the school office.';
+  return 'Unable to authenticate with Cognito. Please try again or contact the school office.';
+}
 
-      // Verify code in DynamoDB first to guarantee role & metadata
-      const user = await getUserByAccessCode(code);
-      if (!user) {
-        logger.warn('Login attempt with invalid code', {
-          action: 'auth.login',
-          metadata: { providedCodeLength: code.length },
-        });
-        throw new UnauthorizedError(
-          'Code not recognised. Check for typos or contact the school office.'
-        );
-      }
-
-      const userId = (user.PK as string).replace('USER#', '');
-      const userRole = (user.role as 'parent' | 'teacher' | 'admin') || 'parent';
-      const userName = (user.name as string) || 'ClassLine User';
-      const userInitials = (user.avatarInitials as string) || (userName.split(' ').map((w) => w[0]).join('').slice(0, 2));
-      const schoolId = (user.schoolId as string) || 'oakridge-primary';
-
-      let token = '';
-
-      try {
-        // Attempt Cognito Custom Auth flow
-        const cognitoResult = await loginWithCognitoCustomAuth(code);
-        token = cognitoResult.idToken;
-      } catch (cognitoErr) {
-        logger.warn('Cognito flow unavailable or simulated; generating authenticated session token', {
-          userId,
-          error: (cognitoErr as Error).message,
-        });
-
-        // Generate robust fallback token containing verified claims
-        const payload = {
-          id: userId,
-          name: userName,
-          role: userRole,
-          email: user.email,
-          schoolId,
-          avatarInitials: userInitials,
-          accessCode: code,
-          exp: Math.floor(Date.now() / 1000) + 24 * 3600,
-        };
-        token = Buffer.from(JSON.stringify(payload)).toString('base64');
-      }
-
-      const redirectTo = userRole === 'teacher' ? '/teacher-desk.html' : '/parent-timeline.html';
-
-      logger.info('User authenticated successfully', {
-        action: 'auth.login',
-        userId,
-        role: userRole,
-      });
-
-      res.status(200).json({
-        token,
-        user: {
-          id: userId,
-          name: userName,
-          role: userRole,
-          avatarInitials: userInitials,
-          schoolId,
-          email: user.email,
-        },
-        redirectTo,
-      });
-    } catch (err) {
-      next(err);
+authRouter.post('/login', loginRateLimiter, async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { username, password } = LoginSchema.parse(req.body);
+    const result = await loginWithCognitoPassword(username, password);
+    const payload = JSON.parse(Buffer.from(result.IdToken!.split('.')[1], 'base64url').toString('utf8'));
+    const role = payload['custom:role'] || 'parent';
+    res.status(200).json({
+      token: result.IdToken,
+      user: {
+        id: payload.sub, username: payload['cognito:username'] || username,
+        name: payload.name || username, email: payload.email || '', role,
+        schoolId: payload['custom:schoolId'] || '', avatarInitials: payload['custom:avatarInitials'] || '',
+        children: [], class: payload['custom:class'] || undefined,
+        isAuthorized: payload['custom:isAuthorized'] === 'true' || payload['custom:role'] === 'admin',
+      },
+    });
+  } catch (error) {
+    if (error instanceof CognitoIdentityProviderServiceException) {
+      logger.warn('Cognito password login failed', { action: 'auth.login', metadata: { errorName: error.name } });
+      next(new UnauthorizedError(getCognitoMessage(error)));
+      return;
     }
+    next(error);
   }
-);
+});
+
+authRouter.post('/forgot-password', loginRateLimiter, async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const username = z.string().trim().min(1).max(128).parse(req.body?.username);
+    await requestCognitoPasswordReset(username);
+    res.status(200).json({ message: 'If this account can receive a reset code, Cognito has sent it to the registered contact method.' });
+  } catch (error) {
+    if (error instanceof CognitoIdentityProviderServiceException) {
+      next(new BadRequestError(getCognitoMessage(error)));
+      return;
+    }
+    next(error);
+  }
+});
+
+authRouter.post('/confirm-password-reset', loginRateLimiter, async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const input = z.object({ username: z.string().trim().min(1).max(128), code: z.string().trim().min(1).max(32), password: z.string().min(8).max(256) }).parse(req.body);
+    await confirmCognitoPasswordReset(input.username, input.code, input.password);
+    res.status(200).json({ message: 'Password updated. You can now sign in.' });
+  } catch (error) {
+    if (error instanceof CognitoIdentityProviderServiceException) {
+      next(new BadRequestError(getCognitoMessage(error)));
+      return;
+    }
+    next(error);
+  }
+});
 
 authRouter.get('/me', authenticate, async (req: Request, res: Response) => {
-  res.status(200).json({
-    user: req.user,
-  });
+  res.status(200).json({ user: req.user });
 });

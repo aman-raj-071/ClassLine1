@@ -66,7 +66,7 @@ export const LandingHero: React.FC<LandingHeroProps> = ({ onOpenLogin }) => {
               className="w-full sm:w-auto px-8 py-4 rounded-full bg-[#fdfaf6] text-[#1a1410] hover:bg-[#ede4d9] font-bold text-sm tracking-wide shadow-xl hover:shadow-2xl hover:-translate-y-0.5 transition-all flex items-center justify-center gap-2.5 group"
             >
               <LogIn className="w-4 h-4 text-[#8a6f5a] group-hover:scale-110 transition-transform" />
-              <span>Sign In with Access Code</span>
+              <span>Sign In with School Credentials</span>
             </button>
             <p className="text-xs text-[#c8bfb4]/70">
               Your school office provides your confidential 6-digit key.

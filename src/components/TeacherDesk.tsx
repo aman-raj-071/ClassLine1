@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { EntryType, Pupil } from '../types';
+import { usesSchoolApi } from '../utils/schoolApi';
 import { getPupilDetailsForClass, getPupilsForClass, PUPIL_CHILD_IDS } from '../data/mockData';
 import {
   Send,
@@ -46,6 +47,7 @@ import { GradeNotesLibrary } from './GradeNotesLibrary';
 export const TeacherDesk: React.FC = () => {
   const {
     currentUser,
+    schoolPupils,
     dispatches,
     signOffItems,
     signOffItem,
@@ -61,7 +63,7 @@ export const TeacherDesk: React.FC = () => {
     replyToParentMessage,
   } = useAuth();
 
-  const [teacherActiveTab, setTeacherActiveTab] = useState<'dispatch' | 'gradebook' | 'assistant' | 'notes' | 'accounts' | 'staff' | 'directory' | 'about'>('dispatch');
+  const [teacherActiveTab, setTeacherActiveTab] = useState<'dispatch' | 'gradebook' | 'assistant' | 'notes' | 'accounts' | 'staff' | 'directory' | 'about' | 'classroom'>('dispatch');
   const [category, setCategory] = useState<EntryType>('note');
   const [recipientScope, setRecipientScope] = useState<'class' | 'individual' | 'group'>('class');
   const [selectedPupilNames, setSelectedPupilNames] = useState<string[]>([]);
@@ -77,7 +79,7 @@ export const TeacherDesk: React.FC = () => {
   const [parentReplyDrafts, setParentReplyDrafts] = useState<Record<string, string>>({});
 
   // Sign-off ledger state
-  const [showSignOffQueue, setShowSignOffQueue] = useState<boolean>(true);
+  const [showSignOffQueue, setShowSignOffQueue] = useState<boolean>(false);
   const [signOffFilter, setSignOffFilter] = useState<'all_pending' | 'reading' | 'consents' | 'signed'>('all_pending');
   const [activeRemarkId, setActiveRemarkId] = useState<string | null>(null);
   const [activeRemarkText, setActiveRemarkText] = useState<string>('');
@@ -86,7 +88,7 @@ export const TeacherDesk: React.FC = () => {
   const signedSignOffs = signOffItems.filter((i) => i.status === 'signed');
   const assignedClass = currentUser?.class || 'Class III A';
   const isAuthorized = Boolean(currentUser?.isAuthorized);
-  const classPupils = getPupilsForClass(assignedClass);
+  const classPupils = usesSchoolApi ? schoolPupils : getPupilsForClass(assignedClass);
   const classChildIds = new Set(classPupils.map((pupil) => PUPIL_CHILD_IDS[pupil.id] || pupil.id));
   const parentMessages = timelineEntries.filter((entry) => classChildIds.has(entry.childId)).flatMap((entry) => (entry.parentMessages || []).map((message) => ({ entry, message }))).slice(0, 8);
   const selectedPupilGradeCard = profilePupil
@@ -104,16 +106,32 @@ export const TeacherDesk: React.FC = () => {
 
   const MAX_CHARS = 600;
 
-  // Autosave simulation
+  // Keep an unfinished notice available after an accidental refresh.
   useEffect(() => {
-    const timer = setInterval(() => {
-      if (entryBody.trim()) {
-        const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-        setLastAutosave(`Autosaved at ${time}`);
-      }
-    }, 20000);
-    return () => clearInterval(timer);
-  }, [entryBody]);
+    try {
+      const saved = localStorage.getItem(`classline_notice_draft_${currentUser?.username}`);
+      if (!saved) return;
+      const draft = JSON.parse(saved);
+      setEntryTitle(draft.title || ''); setEntryBody(draft.body || '');
+      if (['note', 'event', 'fee', 'general'].includes(draft.category)) setCategory(draft.category);
+      if (['class', 'individual', 'group'].includes(draft.scope)) setRecipientScope(draft.scope);
+      if (Array.isArray(draft.pupils)) setSelectedPupilNames(draft.pupils.filter((name: unknown) => typeof name === 'string'));
+      setLastAutosave('Draft restored');
+      if (draft.body || draft.title) setIsComposerOpen(true);
+    } catch { /* A damaged draft must not prevent opening the workspace. */ }
+  }, [currentUser?.username]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      try {
+        const key = `classline_notice_draft_${currentUser?.username}`;
+        if (!entryBody.trim() && !entryTitle.trim()) { localStorage.removeItem(key); setLastAutosave('No unsent draft'); return; }
+        localStorage.setItem(key, JSON.stringify({ title: entryTitle, body: entryBody, category, scope: recipientScope, pupils: selectedPupilNames }));
+        setLastAutosave('Draft saved on this device');
+      } catch { setLastAutosave('Draft could not be saved on this device'); }
+    }, 700);
+    return () => clearTimeout(timer);
+  }, [entryBody, entryTitle, category, recipientScope, selectedPupilNames, currentUser?.username]);
 
   const togglePupilSelection = (name: string) => {
     setSelectedPupilNames((prev) =>
@@ -123,6 +141,7 @@ export const TeacherDesk: React.FC = () => {
 
   const handlePost = (e: React.FormEvent) => {
     e.preventDefault();
+    if (isPosting) return;
     if (!entryBody.trim()) {
       showToast('Please compose entry text before posting.', 'error');
       return;
@@ -135,8 +154,8 @@ export const TeacherDesk: React.FC = () => {
 
     setIsPosting(true);
 
-    setTimeout(() => {
-      const wasDelivered = addDispatch({
+    setTimeout(async () => {
+      const wasDelivered = await addDispatch({
         category,
         title: entryTitle.trim() || (category === 'note' ? 'Individual Progress Note' : 'Class Notice'),
         body: entryBody.trim(),
@@ -187,7 +206,7 @@ export const TeacherDesk: React.FC = () => {
   };
 
   return (
-    <div className="max-w-[1240px] mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-8">
+    <div className="dashboard-shell teacher-dashboard max-w-[1240px] mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-6">
       {/* Registry Header Block */}
       <div className="space-y-4">
         <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-[#6b5a48]">
@@ -198,7 +217,7 @@ export const TeacherDesk: React.FC = () => {
         <div className="flex flex-col md:flex-row md:items-baseline justify-between gap-4">
           <div>
             <h1 className="font-serif text-3xl sm:text-4xl text-[#1a1410] tracking-tight">
-              {currentUser?.name || 'Aman Raj'}
+              Your classroom, at a glance
             </h1>
             <p className="text-sm text-[#5a4f45] mt-1">
               <span>Role: Class Teacher</span>
@@ -206,190 +225,20 @@ export const TeacherDesk: React.FC = () => {
               <span>Assigned class: {assignedClass} &bull; {classPupils.length} Pupils Enrolled</span>
             </p>
           </div>
+          <button type="button" onClick={() => { setTeacherActiveTab('dispatch'); setIsComposerOpen(true); window.setTimeout(() => { document.getElementById('composerInput')?.scrollIntoView({ behavior: 'smooth', block: 'center' }); document.getElementById('composerInput')?.focus({ preventScroll: true }); }, 0); }} className="inline-flex min-h-11 items-center justify-center gap-2 self-start rounded-xl bg-[#304d37] px-5 py-3 text-sm font-semibold text-white shadow-sm hover:bg-[#233e2a]"><Send className="h-4 w-4" /> New announcement</button>
         </div>
 
-        {/* Primary tools stay at the top of the workspace for faster access. */}
-        <nav className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[#d4cdc4] bg-[#f0ebe3] p-2" aria-label="Teacher workspace tools">
-          <div className="grid w-full grid-cols-2 gap-1 rounded-xl bg-[#e8e2d8] p-1 shadow-inner sm:flex sm:w-auto sm:flex-wrap sm:items-center">
-            <button type="button" onClick={() => setTeacherActiveTab('dispatch')} className={`flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-bold ${teacherActiveTab === 'dispatch' ? 'bg-[#fdfaf6] text-[#1a1410] shadow-sm' : 'text-[#6b5a48]'}`}><Send className="w-4 h-4 text-[#8a6f5a]" />Daily Dispatch &amp; Log</button>
-            <button type="button" onClick={() => setTeacherActiveTab('gradebook')} className={`flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-bold ${teacherActiveTab === 'gradebook' ? 'bg-[#fdfaf6] text-[#1a1410] shadow-sm' : 'text-[#6b5a48]'}`}><GraduationCap className="w-4 h-4 text-[#2a4a35]" />Gradebook <span className="rounded-full bg-[#d4e8da] px-1.5 py-0.5 text-[9px] text-[#1e3828]">Marks</span></button>
-            <button type="button" onClick={() => setTeacherActiveTab('assistant')} className={`flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-bold ${teacherActiveTab === 'assistant' ? 'bg-[#fdfaf6] text-[#1a1410] shadow-sm' : 'text-[#6b5a48]'}`}><Sparkles className="w-4 h-4 text-[#7a4e10]" />AI Assist</button>
-            <button type="button" onClick={() => setTeacherActiveTab('notes')} className={`flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-bold ${teacherActiveTab === 'notes' ? 'bg-[#fdfaf6] text-[#1a1410] shadow-sm' : 'text-[#6b5a48]'}`}><FileText className="w-4 h-4 text-[#2a4a35]" />Grade Notes</button>
-            <button type="button" onClick={() => { setTeacherActiveTab('dispatch'); setShowSignOffQueue(true); window.setTimeout(() => document.getElementById('awaiting-signoff-ledger')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 0); }} className="flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-bold text-[#6b5a48]"><Clock className="w-4 h-4 text-[#7a4e10]" />Sign-offs ({pendingSignOffs.length})</button>
-            {isAuthorized && <button type="button" onClick={() => setTeacherActiveTab('accounts')} className={`flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-bold ${teacherActiveTab === 'accounts' ? 'bg-[#fdfaf6] text-[#1a1410] shadow-sm' : 'text-[#6b5a48]'}`}><UserPlus className="w-4 h-4 text-[#2a4a35]" />Parent Accounts</button>}
-            {isAuthorized && <button type="button" onClick={() => setTeacherActiveTab('staff')} className={`flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-bold ${teacherActiveTab === 'staff' ? 'bg-[#fdfaf6] text-[#1a1410] shadow-sm' : 'text-[#6b5a48]'}`}><GraduationCap className="w-4 h-4 text-[#7a4e10]" />Teacher Accounts</button>}
-            {isAuthorized && <button type="button" onClick={() => setTeacherActiveTab('directory')} className={`flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-bold ${teacherActiveTab === 'directory' ? 'bg-[#fdfaf6] text-[#1a1410] shadow-sm' : 'text-[#6b5a48]'}`}><Users className="w-4 h-4 text-[#2a4a35]" />All Students</button>}
-            <button type="button" onClick={() => setTeacherActiveTab('about')} className={`flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-bold ${teacherActiveTab === 'about' ? 'bg-[#fdfaf6] text-[#1a1410] shadow-sm' : 'text-[#6b5a48]'}`}><BookOpen className="w-4 h-4 text-[#8a6f5a]" />About Class</button>
-          </div>
-          <span className="px-2 text-xs text-[#6b5a48]">Class Teacher: <strong className="text-[#1a1410]">{assignedClass}</strong></span>
+        <nav className="workspace-nav teacher-tools" aria-label="Teacher workspace tools">
+          {([
+            ['dispatch', 'Announcements', Send], ['classroom', 'Class overview', Users], ['gradebook', 'Gradebook', GraduationCap], ['assistant', 'AI Assist', Sparkles], ['notes', 'Grade notes', FileText], ['about', 'About class', BookOpen],
+            ...(isAuthorized ? [['accounts', 'Parents', UserPlus], ['staff', 'Teachers', GraduationCap], ['directory', 'Directory', Users]] : []),
+          ] as const).map(([id, label, Icon]) => <button key={id} type="button" aria-current={teacherActiveTab === id ? 'page' : undefined} onClick={() => setTeacherActiveTab(id as typeof teacherActiveTab)} className={teacherActiveTab === id ? 'is-active' : ''}><Icon className="h-4 w-4" />{label}</button>)}
         </nav>
 
-        {/* 4 Metric Cards Row */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 pt-2">
-          <div className="bg-[#fdfaf6] p-4 rounded-2xl border border-[#d4cdc4] shadow-sm flex items-center gap-4">
-            <div className="w-10 h-10 rounded-xl bg-[#ede4d9] text-[#6b5a48] flex items-center justify-center shrink-0">
-              <Users className="w-5 h-5" />
-            </div>
-            <div>
-              <p className="font-serif text-2xl text-[#1a1410] leading-none">{connectedPupilCount} / {classPupils.length}</p>
-              <p className="text-xs text-[#6b5a48] font-semibold mt-1">Parents Connected</p>
-            </div>
-          </div>
-
-          <div className="bg-[#fdfaf6] p-4 rounded-2xl border border-[#d4cdc4] shadow-sm flex items-center gap-4">
-            <div className="w-10 h-10 rounded-xl bg-[#d4e8da] text-[#1e3828] flex items-center justify-center shrink-0">
-              <CheckCircle2 className="w-5 h-5" />
-            </div>
-            <div>
-              <p className="font-serif text-2xl text-[#2a4a35] leading-none">100%</p>
-              <p className="text-xs text-[#6b5a48] font-semibold mt-1">Delivered This Week</p>
-            </div>
-          </div>
-
-          <button
-            type="button"
-            id="awaiting-signoff-card-btn"
-            onClick={() => {
-              setTeacherActiveTab('dispatch');
-              setShowSignOffQueue(true);
-              const el = document.getElementById('awaiting-signoff-ledger');
-              if (el) {
-                el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-              }
-            }}
-            className={`text-left p-4 rounded-2xl border transition-all shadow-sm flex items-center gap-4 group cursor-pointer ${
-              pendingSignOffs.length > 0
-                ? 'bg-[#fdfaf6] border-[#7a4e10]/40 hover:border-[#7a4e10] ring-1 ring-[#7a4e10]/20'
-                : 'bg-[#fdfaf6] border-[#d4cdc4] hover:border-[#8a6f5a]'
-            }`}
-            title="Click to view and sign off pending items in the ledger"
-          >
-            <div className="w-10 h-10 rounded-xl bg-[#f5e6c8] text-[#7a4e10] flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
-              <Clock className="w-5 h-5" />
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center justify-between gap-2">
-                <p className="font-serif text-2xl text-[#7a4e10] leading-none">
-                  {pendingSignOffs.length}
-                </p>
-                <span
-                  className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider ${
-                    pendingSignOffs.length > 0
-                      ? 'bg-[#f5e6c8] text-[#7a4e10]'
-                      : 'bg-[#d4e8da] text-[#1e3828]'
-                  }`}
-                >
-                  {pendingSignOffs.length > 0 ? `${pendingSignOffs.length} Pending` : 'All Clear'}
-                </span>
-              </div>
-              <p className="text-xs text-[#6b5a48] font-semibold mt-1 flex items-center justify-between">
-                <span>Awaiting Sign-off</span>
-                <span className="text-[11px] text-[#7a4e10] font-normal group-hover:underline">
-                  Review queue →
-                </span>
-              </p>
-            </div>
-          </button>
-
-          {/* Metric 4: Pupil Gradebook Card */}
-          <button
-            type="button"
-            id="teacher-gradebook-card-btn"
-            onClick={() => setTeacherActiveTab('gradebook')}
-            className={`text-left p-4 rounded-2xl border transition-all shadow-sm flex items-center gap-4 group cursor-pointer ${
-              teacherActiveTab === 'gradebook'
-                ? 'bg-[#fdfaf6] border-[#2a4a35] ring-2 ring-[#2a4a35]/20'
-                : 'bg-[#fdfaf6] border-[#d4cdc4] hover:border-[#2a4a35]'
-            }`}
-            title="Click to assess pupil marks and update grade card format"
-          >
-            <div className="w-10 h-10 rounded-xl bg-[#d4e8da] text-[#1e3828] flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
-              <GraduationCap className="w-5 h-5" />
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center justify-between gap-2">
-                <p className="font-serif text-xl font-bold text-[#1a1410] leading-none">
-                  Autumn
-                </p>
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider bg-[#d4e8da] text-[#1e3828]">
-                  Ready
-                </span>
-              </div>
-              <p className="text-xs text-[#6b5a48] font-semibold mt-1 flex items-center justify-between">
-                <span>Grade Card Assessor</span>
-                <span className="text-[11px] text-[#2a4a35] font-bold group-hover:underline">
-                  {teacherActiveTab === 'gradebook' ? 'Active' : 'Input marks →'}
-                </span>
-              </p>
-            </div>
-          </button>
-        </div>
-      </div>
-
-      {/* Teacher Workspace Navigation Bar */}
-      <div className="hidden flex-wrap items-center justify-between gap-4 p-2 bg-[#f0ebe3] rounded-2xl border border-[#d4cdc4]">
-        <div className="flex p-1 bg-[#e8e2d8] rounded-xl shadow-inner gap-1">
-          <button
-            type="button"
-            id="tab-teacher-dispatch"
-            onClick={() => setTeacherActiveTab('dispatch')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all ${
-              teacherActiveTab === 'dispatch'
-                ? 'bg-[#fdfaf6] text-[#1a1410] shadow-sm'
-                : 'text-[#6b5a48] hover:text-[#1a1410]'
-            }`}
-          >
-            <Send className="w-4 h-4 text-[#8a6f5a]" />
-            <span>Daily Dispatch &amp; Log</span>
-          </button>
-
-          <button
-            type="button"
-            id="tab-teacher-gradebook"
-            onClick={() => setTeacherActiveTab('gradebook')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all ${
-              teacherActiveTab === 'gradebook'
-                ? 'bg-[#fdfaf6] text-[#1a1410] shadow-sm'
-                : 'text-[#6b5a48] hover:text-[#1a1410]'
-            }`}
-          >
-            <GraduationCap className="w-4 h-4 text-[#2a4a35]" />
-            <span>Pupil Gradebook &amp; Marks Studio</span>
-            <span className="ml-1 px-2 py-0.5 rounded-full text-[9px] font-bold bg-[#d4e8da] text-[#1e3828] border border-[#b4d4be]">
-              Grade Card Format
-            </span>
-          </button>
-
-          <button
-            type="button"
-            id="tab-teacher-signoffs"
-            onClick={() => {
-              setTeacherActiveTab('dispatch');
-              setShowSignOffQueue(true);
-              const el = document.getElementById('awaiting-signoff-ledger');
-              if (el) {
-                el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-              }
-            }}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all text-[#6b5a48] hover:text-[#1a1410]`}
-          >
-            <Clock className="w-4 h-4 text-[#7a4e10]" />
-            <span>Sign-offs ({pendingSignOffs.length})</span>
-          </button>
-
-          <button
-            type="button"
-            id="tab-teacher-accounts"
-            onClick={() => setTeacherActiveTab('accounts')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all ${teacherActiveTab === 'accounts' ? 'bg-[#fdfaf6] text-[#1a1410] shadow-sm' : 'text-[#6b5a48] hover:text-[#1a1410]'}`}
-          >
-            <UserPlus className="w-4 h-4 text-[#2a4a35]" />
-            <span>Parent Accounts</span>
-          </button>
-        </div>
-
-        <div className="text-xs text-[#6b5a48] px-2 hidden sm:block">
-          Role: <strong className="text-[#1a1410]">Class Teacher</strong> &bull; Assigned class: <strong className="text-[#1a1410]">{assignedClass}</strong>
+        <div className="workspace-summary" aria-label="Class summary">
+          <div><span className="summary-value">{connectedPupilCount}<span className="summary-denominator"> / {classPupils.length}</span></span><span className="summary-label">Families connected</span></div>
+          <button type="button" onClick={() => { setTeacherActiveTab('dispatch'); setShowSignOffQueue(true); window.setTimeout(() => document.getElementById('awaiting-signoff-ledger')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 0); }}><span className="summary-value">{pendingSignOffs.length}</span><span className="summary-label">Submissions to review <span aria-hidden="true">↗</span></span></button>
+          <button type="button" onClick={() => { setTeacherActiveTab('dispatch'); setShowDispatchRegistry(true); window.setTimeout(() => document.getElementById('sent-announcements')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 0); }}><span className="summary-value">{dispatches.length}</span><span className="summary-label">Recent announcements <span aria-hidden="true">↗</span></span></button>
         </div>
       </div>
 
@@ -406,7 +255,7 @@ export const TeacherDesk: React.FC = () => {
         <GradeCardEditor />
       ) : teacherActiveTab === 'assistant' ? (
         <TeacherAiAssistant pupils={classPupils} onSendDraft={(draft, topic, audience, pupilName) => {
-          addDispatch({
+          return addDispatch({
             category: 'note',
             title: topic,
             body: draft,
@@ -421,7 +270,7 @@ export const TeacherDesk: React.FC = () => {
         /* MAIN DISPATCH & LEDGER DESK */
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
         {/* Left Column (8 cols): Composer & Sent Registry */}
-        <div className="lg:col-span-8 flex flex-col gap-8">
+        <div className={`${teacherActiveTab === 'classroom' ? 'hidden' : 'lg:col-span-12 flex flex-col gap-6'}`}>
           {/* AWAITING SIGN-OFF VERIFICATION DESK */}
           <section
             id="awaiting-signoff-ledger"
@@ -736,7 +585,7 @@ export const TeacherDesk: React.FC = () => {
             <div className="flex items-center justify-between pb-3 border-b border-[#e8e2d8]">
               <div className="flex items-center gap-2">
                 <span className="w-2.5 h-2.5 rounded-full bg-[#1a1410]" />
-                <h2 className="font-serif text-lg font-medium text-[#1a1410]">New Ledger Entry</h2>
+                <h2 className="font-serif text-lg font-medium text-[#1a1410]">Write an announcement</h2>
               </div>
               <button type="button" onClick={() => setIsComposerOpen((open) => !open)} className="rounded-full bg-[#1a1410] px-4 py-2 text-xs font-bold text-[#f7f3ed] hover:bg-[#2e2620]">
                 {isComposerOpen ? 'Close composer' : 'Create notice'}
@@ -745,6 +594,7 @@ export const TeacherDesk: React.FC = () => {
 
             {!isComposerOpen && <p className="text-sm text-[#5a4f45]">Create one clear notice at a time. Choose the audience, write the message, and post it to the ledger.</p>}
             {isComposerOpen && <form onSubmit={handlePost} className="space-y-5">
+              <p role="status" className="text-xs text-[#6c7562]"><CheckCircle2 className="mr-1.5 inline h-3.5 w-3.5" />{lastAutosave}</p>
               {/* Classification Chips */}
               <div className="space-y-1.5">
                 <label className="text-xs font-bold uppercase tracking-wider text-[#5a4f45]">
@@ -931,6 +781,8 @@ export const TeacherDesk: React.FC = () => {
                 <div className="relative">
                   <textarea
                     id="composerInput"
+                    aria-label="Announcement message"
+                    disabled={isPosting}
                     value={entryBody}
                     onChange={(e) => setEntryBody(e.target.value.slice(0, MAX_CHARS))}
                     rows={4}
@@ -1010,12 +862,12 @@ export const TeacherDesk: React.FC = () => {
                   {isPosting ? (
                     <>
                       <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                      <span>Posting to Ledger…</span>
+                      <span>Sending announcement…</span>
                     </>
                   ) : (
                     <>
                       <Send className="w-3.5 h-3.5" />
-                      <span>Post to Ledger</span>
+                      <span>Send announcement</span>
                     </>
                   )}
                 </button>
@@ -1024,12 +876,12 @@ export const TeacherDesk: React.FC = () => {
           </div>
 
           {/* SENT DISPATCH REGISTRY */}
-          <div className="order-3 bg-[#fdfaf6] rounded-2xl p-5 border border-[#d4cdc4] shadow-sm space-y-4">
+          <div id="sent-announcements" className="order-3 bg-[#fdfaf6] rounded-2xl p-5 border border-[#d4cdc4] shadow-sm space-y-4">
             <button type="button" onClick={() => setShowDispatchRegistry((open) => !open)} className="flex w-full items-center justify-between border-b border-[#e8e2d8] pb-3 text-left">
               <div className="flex items-center gap-2">
                 <History className="w-4 h-4 text-[#8a6f5a]" />
                 <h3 className="font-serif text-lg font-medium text-[#1a1410]">
-                  Sent Dispatch Registry
+                  Sent announcements
                 </h3>
               </div>
               <span className="text-xs font-semibold text-[#6b5a48]">{showDispatchRegistry ? 'Hide' : 'Show'} recent</span>
@@ -1116,7 +968,7 @@ export const TeacherDesk: React.FC = () => {
         </div>
 
         {/* Right Column (4 cols): Classroom Desk & Analytics */}
-        <aside className="lg:col-span-4 space-y-6">
+        <aside aria-label="Class overview" className={teacherActiveTab === 'classroom' ? 'lg:col-span-12 grid gap-6 md:grid-cols-2 items-start' : 'hidden'}>
           <section className="rounded-2xl border border-[#d4cdc4] bg-[#fdfaf6] p-5 shadow-sm">
             <div className="flex items-center justify-between border-b border-[#e8e2d8] pb-3"><div className="flex items-center gap-2"><MessageSquare className="h-4 w-4 text-[#2a5038]" /><h3 className="font-serif text-base text-[#1a1410]">Parent messages</h3></div><span className="rounded-full bg-[#edf7ef] px-2 py-0.5 text-[10px] font-bold text-[#1e3828]">{parentMessages.length}</span></div>
             <div className="mt-3 space-y-3">{parentMessages.length ? parentMessages.map(({ entry, message }) => <article key={message.id} className="rounded-xl border border-[#e8e2d8] bg-[#f7f3ed] p-3"><p className="text-[11px] font-bold text-[#1a1410]">{entry.title}</p><p className="mt-1 text-xs text-[#5a4f45]">Parent: “{message.text}”</p>{message.teacherReplyText ? <div className="mt-2 rounded-lg bg-[#d4e8da] p-2 text-xs text-[#1e3828]">Your reply: {message.teacherReplyText}</div> : <div className="mt-2 flex gap-1"><input value={parentReplyDrafts[message.id] || ''} onChange={(event) => setParentReplyDrafts((previous) => ({ ...previous, [message.id]: event.target.value }))} onKeyDown={(event) => { if (event.key === 'Enter') { replyToParentMessage(entry.id, message.id, parentReplyDrafts[message.id] || ''); setParentReplyDrafts((previous) => ({ ...previous, [message.id]: '' })); } }} placeholder="Reply to parent…" className="min-w-0 flex-1 rounded-lg border border-[#d4cdc4] bg-white px-2 py-1.5 text-xs outline-none" /><button type="button" onClick={() => { replyToParentMessage(entry.id, message.id, parentReplyDrafts[message.id] || ''); setParentReplyDrafts((previous) => ({ ...previous, [message.id]: '' })); }} className="rounded-lg bg-[#1a1410] px-2 py-1 text-[10px] font-bold text-white">Reply</button></div>}</article>) : <p className="rounded-xl bg-[#f7f3ed] p-3 text-xs text-[#6b5a48]">No parent messages yet.</p>}</div>
