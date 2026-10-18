@@ -90,4 +90,11 @@ that a failed publish keeps the teacher's draft.
 
 ## Quality checks
 
+Amplify installs with npm 10.9.3. When changing dependencies, regenerate the
+lockfile with `npx --yes --package=npm@10.9.3 npm install --package-lock-only`
+and commit both `package.json` and `package-lock.json`. A build that reports
+`Missing ... from lock file` fails before backend deployment; rerunning the
+same commit does not repair it. Run `npm run lint:backend` to validate the
+Amplify definitions as well as the frontend's separate TypeScript check.
+
 Run `npm run lint`, `npm test`, and `npm run build` before shipping changes.

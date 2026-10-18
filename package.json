@@ -3,6 +3,7 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
+  "packageManager": "npm@10.9.3",
   "scripts": {
     "dev": "concurrently --kill-others-on-fail --names WEB,API --prefix-colors cyan,green \"npm run dev:web\" \"npm run dev:api\"",
     "dev:web": "vite --port=3000 --host=0.0.0.0",
@@ -10,6 +11,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "lint": "tsc --noEmit",
+    "lint:backend": "tsc --noEmit -p amplify/tsconfig.json",
     "test": "vitest run",
     "seed": "tsx scripts/seed.ts"
   },

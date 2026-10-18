@@ -2,6 +2,7 @@ import { defineFunction, secret } from '@aws-amplify/backend';
 
 export const apiFunction = defineFunction({
   name: 'classline-api',
+  runtime: 22,
   entry: '../../../backend/src/lambda.ts',
   timeoutSeconds: 30,
   memoryMB: 512,

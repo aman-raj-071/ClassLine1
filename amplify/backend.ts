@@ -77,8 +77,8 @@ classLineTable.addGlobalSecondaryIndex({
 
 // 2. Permissions: Grant Lambda full read/write access to ClassLineTable
 const lambdaFunction = backend.apiFunction.resources.lambda;
-lambdaFunction.addEnvironment('COGNITO_USER_POOL_ID', backend.auth.resources.userPool.userPoolId);
-lambdaFunction.addEnvironment('COGNITO_CLIENT_ID', backend.auth.resources.userPoolClient.userPoolClientId);
+backend.apiFunction.addEnvironment('COGNITO_USER_POOL_ID', backend.auth.resources.userPool.userPoolId);
+backend.apiFunction.addEnvironment('COGNITO_CLIENT_ID', backend.auth.resources.userPoolClient.userPoolClientId);
 classLineTable.grantReadWriteData(lambdaFunction);
 
 // Allow the API to authenticate users and perform self-service password resets.
