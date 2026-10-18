@@ -30,6 +30,15 @@ export const backend = defineBackend({
   apiFunction,
 });
 
+// Allow office-issued usernames as well as email aliases.
+const userPool = backend.auth.resources.cfnResources.cfnUserPool;
+userPool.usernameAttributes = [];
+userPool.aliasAttributes = ['email'];
+userPool.policies = { passwordPolicy: {
+  minimumLength: 8, requireLowercase: true, requireUppercase: true,
+  requireNumbers: true, requireSymbols: true,
+} };
+
 // Create DynamoDB single-table & custom CDK resources
 const customResourcesStack = backend.createStack('ClassLineStorageStack');
 
@@ -89,12 +98,10 @@ lambdaFunction.addToRolePolicy(new aws_iam.PolicyStatement({
   resources: ['arn:aws:bedrock:*::foundation-model/amazon.nova-lite-v1:0'],
 }));
 
-// Grant permissions to the VerifyAuthChallenge trigger to query GSI2
-const verifyAuthLambda = backend.auth.resources.userPool;
-classLineTable.grantReadData(backend.auth.resources.groups ? lambdaFunction : lambdaFunction);
-
 // 3. API Gateway HTTP API v2 (eu-west-2)
-const httpApi = new HttpApi(customResourcesStack, 'ClassLineHttpApi', {
+// Keep API -> Lambda -> storage dependencies in one direction.
+const apiStack = backend.createStack('ClassLineApiStack');
+const httpApi = new HttpApi(apiStack, 'ClassLineHttpApi', {
   apiName: 'ClassLineRestApi',
   description: 'Production Serverless REST API for ClassLine School Diary',
   corsPreflight: {
