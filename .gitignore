@@ -8,3 +8,7 @@ coverage/
 !.env.example
 output/
 tmp/
+
+# npm is the deployment package manager; CDK requires a single lockfile.
+bun.lock
+bun.lockb
