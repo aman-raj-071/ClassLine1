@@ -88,6 +88,20 @@ parent, publish a whole-class notice, and check that it appears within 10 second
 Also verify that an individual notice appears only for its selected pupil and
 that a failed publish keeps the teacher's draft.
 
+## CDK bootstrap permission error
+
+If deployment reports `BootstrapDetectionError` with `ssm:GetParameter` denied,
+the build role needs read access to the CDK bootstrap version parameter. This
+permission must be granted before deployment; changing the application's Lambda
+role in `amplify/backend.ts` cannot grant it to the build role.
+
+For the build in account `073653171576`, upload
+`scripts/fix-amplify-bootstrap-permissions.sh` to AWS CloudShell in that account
+and run `bash fix-amplify-bootstrap-permissions.sh` with an identity allowed to
+manage the build role's inline policies. The script checks the account before
+changing anything and grants only the exact SSM read denied in the build log.
+Retry the failed Amplify build after the permission has propagated.
+
 ## Quality checks
 
 Amplify installs with npm 10.9.3. When changing dependencies, regenerate the
